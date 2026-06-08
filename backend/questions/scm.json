@@ -1,0 +1,20 @@
+{
+  "questions": [
+    "What is the name of the technology or material?",
+    "What type of supplementary cementitious material (SCM) is it?",
+    "What organization(s) or company(ies) developed or supply the material?",
+    "What is the current technology readiness level (TRL) or deployment stage?",
+    "How is the SCM produced or sourced?",
+    "What conventional material does it replace (e.g., Portland cement clinker)?",
+    "What is the typical replacement rate or blend ratio?",
+    "What is the reported reduction in greenhouse gas emissions (%)?",
+    "What is the absolute emissions intensity (kg CO₂e per unit product)?",
+    "How does the SCM affect concrete performance (strength, durability, setting time)?",
+    "What are the supply chain or geographic availability constraints?",
+    "What is the cost premium or cost savings relative to conventional materials?",
+    "Has the material been deployed commercially?",
+    "What standards or certifications apply?",
+    "What evidence supports the reported claims?",
+    "What information is missing or uncertain?"
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "questions": [
+    "What is the name of the technology?",
+    "What category does the technology belong to?",
+    "What organization(s) or company(ies) developed the technology?",
+    "What is the current technology readiness level (TRL) or deployment stage?",
+    "How does the technology work?",
+    "What material, process, or system does the technology replace or improve?",
+    "What performance metric is being improved?",
+    "What is the reported reduction in greenhouse gas emissions (%)?",
+    "What is the absolute emissions intensity (kg CO₂e per unit product)?",
+    "What lifecycle boundary is used for the emissions calculation?",
+    "Does the technology increase emissions elsewhere in the supply chain?",
+    "What assumptions were used in the environmental analysis?",
+    "What is the energy requirement of the technology?",
+    "What type(s) of energy are required?",
+    "Does the technology increase or decrease total energy demand?",
+    "What is the capital cost (CAPEX)?",
+    "What is the operating cost (OPEX)?",
+    "What is the cost premium or cost savings relative to the conventional approach?",
+    "What assumptions were used in the economic analysis?",
+    "Can the technology be implemented using existing infrastructure?",
+    "What are the primary barriers to adoption?",
+    "What geographic, supply-chain, or resource constraints exist?",
+    "Has the technology been deployed commercially?",
+    "What evidence supports the reported claims?",
+    "What is the confidence level in the reported claims?",
+    "What information is missing or uncertain?"
+  ]
+}

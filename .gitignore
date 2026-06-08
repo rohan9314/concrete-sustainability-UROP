@@ -1,0 +1,24 @@
+# Environment
+.env
+backend/.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.venv/
+venv/
+backend/outputs/*.json
+
+# Node
+node_modules/
+dist/
+frontend/dist/
+frontend/node_modules/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/

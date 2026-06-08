@@ -1,0 +1,21 @@
+{
+  "questions": [
+    "What is the name of the technology?",
+    "What category does the technology belong to?",
+    "What organization(s) or company(ies) developed the technology?",
+    "What is the current technology readiness level (TRL) or deployment stage?",
+    "How does the carbon capture technology work?",
+    "What capture method is used (e.g., post-combustion, pre-combustion, oxy-fuel, direct air capture)?",
+    "What is the reported CO₂ capture rate or efficiency (%)?",
+    "What is the energy penalty or parasitic load of the capture process?",
+    "What is the capital cost (CAPEX) per ton of CO₂ captured?",
+    "What is the operating cost (OPEX) per ton of CO₂ captured?",
+    "What is the levelized cost of CO₂ capture?",
+    "How is captured CO₂ stored, utilized, or transported?",
+    "Can the technology be retrofitted to existing cement plants?",
+    "Has the technology been deployed commercially at cement facilities?",
+    "What are the primary barriers to adoption?",
+    "What evidence supports the reported claims?",
+    "What information is missing or uncertain?"
+  ]
+}

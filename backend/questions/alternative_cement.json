@@ -1,0 +1,22 @@
+{
+  "questions": [
+    "What is the name of the technology or cement type?",
+    "What category of alternative cement does it belong to?",
+    "What organization(s) or company(ies) developed the technology?",
+    "What is the current technology readiness level (TRL) or deployment stage?",
+    "How does the alternative cement binder work?",
+    "What conventional Portland cement process or product does it replace?",
+    "What is the clinker factor or clinker substitution level?",
+    "What is the reported reduction in greenhouse gas emissions (%)?",
+    "What is the absolute emissions intensity (kg CO₂e per ton of cement)?",
+    "What is the energy requirement compared to conventional cement production?",
+    "How does the alternative cement affect concrete performance?",
+    "What is the capital cost (CAPEX) for production?",
+    "What is the operating cost (OPEX) for production?",
+    "Can existing cement plant infrastructure be adapted?",
+    "Has the technology been deployed commercially?",
+    "What are the primary barriers to adoption?",
+    "What evidence supports the reported claims?",
+    "What information is missing or uncertain?"
+  ]
+}
