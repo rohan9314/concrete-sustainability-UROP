@@ -1,3 +1,4 @@
+import type { TechnologyEvaluation } from "@/types/technologyEvaluation";
 import type { ResearchReport } from "./research-types";
 
 const API_BASE_URL =
@@ -73,6 +74,32 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
 
   return response.json() as Promise<T>;
+}
+
+export async function evaluateTechnology(
+  technologyName: string,
+): Promise<TechnologyEvaluation> {
+  return request<TechnologyEvaluation>("/api/evaluate", {
+    method: "POST",
+    body: JSON.stringify({ technology_name: technologyName }),
+  });
+}
+
+export async function fetchEvaluations(): Promise<TechnologyEvaluation[]> {
+  return request<TechnologyEvaluation[]>("/api/evaluations");
+}
+
+export async function fetchEvaluationById(id: string): Promise<TechnologyEvaluation> {
+  return request<TechnologyEvaluation>(`/api/evaluations/${id}`);
+}
+
+export async function saveEvaluation(
+  evaluation: TechnologyEvaluation,
+): Promise<TechnologyEvaluation> {
+  return request<TechnologyEvaluation>("/api/evaluations", {
+    method: "POST",
+    body: JSON.stringify(evaluation),
+  });
 }
 
 export async function fetchQuestionSets(): Promise<QuestionSetsResponse> {

@@ -4,10 +4,12 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from evaluations_routes import router as evaluations_router
 from jobs import create_research_job, get_research_job
 from questions import DEFAULT_QUESTION_SET, list_question_sets_info
 
 app = FastAPI(title="Concrete Decarbonization Research API", version="1.0.0")
+app.include_router(evaluations_router)
 
 app.add_middleware(
     CORSMiddleware,

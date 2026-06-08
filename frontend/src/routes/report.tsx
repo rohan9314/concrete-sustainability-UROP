@@ -1,16 +1,8 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
-import { getReport } from "@/lib/research-store";
-import type { Answer, Confidence, ResearchReport, SourceType } from "@/lib/research-types";
-import {
-  ArrowLeft,
-  ChevronDown,
-  Download,
-  ExternalLink,
-  Globe,
-  FileText,
-  AlertTriangle,
-} from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
+import { getEvaluation } from "@/lib/evaluation-store";
+import type { ConfidenceLevel, TechnologyEvaluation } from "@/types/technologyEvaluation";
+import { ArrowLeft, Download, ExternalLink } from "lucide-react";
 
 export const Route = createFileRoute("/report")({
   component: ReportPage,
@@ -20,35 +12,45 @@ function slug(s: string) {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 }
 
-function ReportPage() {
-  const navigate = useNavigate();
-  const [report, setReportState] = useState<ResearchReport | null>(null);
-
-  useEffect(() => {
-    const r = getReport();
-    if (!r) navigate({ to: "/" });
-    else setReportState(r);
-  }, [navigate]);
-
-  if (!report) return null;
-  return <ReportView report={report} />;
+function displayValue(value: string | null | undefined) {
+  if (value === null || value === undefined || value.trim() === "") {
+    return "Not available";
+  }
+  return value;
 }
 
-function ReportView({ report }: { report: ResearchReport }) {
+function ReportPage() {
   const navigate = useNavigate();
-  const sections = useMemo(
-    () => report.answers.map((a) => ({ id: slug(a.question), label: a.question })),
-    [report],
-  );
+  const [evaluation, setEvaluationState] = useState<TechnologyEvaluation | null>(null);
+
+  useEffect(() => {
+    const data = getEvaluation();
+    if (!data) navigate({ to: "/" });
+    else setEvaluationState(data);
+  }, [navigate]);
+
+  if (!evaluation) return null;
+  return <ReportView evaluation={evaluation} />;
+}
+
+function ReportView({ evaluation }: { evaluation: TechnologyEvaluation }) {
+  const navigate = useNavigate();
+  const { overview, technical, environmental, market, evidence } = {
+    overview: evaluation.technology_overview,
+    technical: evaluation.technical_performance,
+    environmental: evaluation.environmental_performance,
+    market: evaluation.cost_and_market,
+    evidence: evaluation.evidence,
+  };
 
   function downloadJson() {
-    const blob = new Blob([JSON.stringify(report, null, 2)], {
+    const blob = new Blob([JSON.stringify(evaluation, null, 2)], {
       type: "application/json",
     });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${slug(report.technology)}-report.json`;
+    a.download = `${slug(overview.technology_name)}-evaluation.json`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -83,61 +85,134 @@ function ReportView({ report }: { report: ResearchReport }) {
       </header>
 
       <div className="mx-auto grid max-w-7xl grid-cols-[1fr] gap-12 px-8 py-12 lg:grid-cols-[220px_1fr]">
-        {/* Sidebar */}
         <aside className="hidden lg:block">
           <div className="sticky top-24">
             <p className="mb-3 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
               Contents
             </p>
             <nav className="space-y-1 border-l border-border">
-              <SidebarLink href="#executive-summary" label="Executive Summary" />
-              {sections.map((s, i) => (
-                <SidebarLink
-                  key={s.id}
-                  href={`#${s.id}`}
-                  label={`${String(i + 1).padStart(2, "0")}. ${s.label}`}
-                />
-              ))}
+              <SidebarLink href="#technology-overview" label="Technology Overview" />
+              <SidebarLink href="#technical-performance" label="Technical Performance" />
+              <SidebarLink href="#environmental-performance" label="Environmental Performance" />
+              <SidebarLink href="#cost-and-market" label="Cost and Market" />
+              <SidebarLink href="#evidence-confidence" label="Evidence and Confidence" />
+              <SidebarLink href="#missing-assumptions" label="Missing / Assumptions" />
             </nav>
           </div>
         </aside>
 
-        {/* Main */}
-        <main className="min-w-0">
-          {/* Report header */}
-          <section className="mb-12 border-b border-border pb-10">
+        <main className="min-w-0 space-y-14">
+          <section className="border-b border-border pb-10">
             <p className="mb-3 font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
-              Research Report · Question Set: {report.questions_file}
+              Technology Evaluation · {evaluation.metadata.generated_by}
             </p>
-            <h1 className="mb-6 font-serif text-[40px] font-semibold leading-tight tracking-tight">
-              {report.technology}
+            <h1 className="mb-4 font-serif text-[40px] font-semibold leading-tight tracking-tight">
+              {overview.technology_name}
             </h1>
-            <RetrievalSummary report={report} />
-          </section>
-
-          {/* Executive summary */}
-          <section id="executive-summary" className="mb-14 scroll-mt-24">
-            <h2 className="mb-5 font-serif text-2xl font-semibold tracking-tight">
-              Executive Summary
-            </h2>
-            <div className="space-y-4 font-serif text-[17px] leading-[1.75] text-foreground/90">
-              {report.executive_summary.split("\n\n").map((p, i) => (
-                <p key={i}>{p}</p>
+            <p className="max-w-3xl font-serif text-[17px] leading-[1.75] text-foreground/90">
+              {displayValue(overview.short_description)}
+            </p>
+            <div className="mt-6 flex flex-wrap gap-2">
+              <ConfidenceBadge level={evidence.confidence_level} />
+              <Tag label={overview.deployment_stage} />
+              {overview.category.map((c) => (
+                <Tag key={c} label={c} />
               ))}
             </div>
           </section>
 
-          {/* Answers */}
-          <section>
-            <h2 className="mb-6 font-serif text-2xl font-semibold tracking-tight">
-              Findings
-            </h2>
-            <div className="space-y-4">
-              {report.answers.map((a, i) => (
-                <AnswerCard key={a.question} answer={a} index={i + 1} />
-              ))}
+          <Section id="technology-overview" title="Technology Overview">
+            <Field label="Technology Name" value={overview.technology_name} />
+            <Field label="Category" value={overview.category.join(", ") || "Not available"} />
+            <Field label="Developers" value={overview.developers.join(", ") || "Not available"} />
+            <Field label="Deployment Stage" value={overview.deployment_stage} />
+            <Field label="TRL" value={displayValue(overview.trl)} />
+            <Field label="Short Description" value={overview.short_description} />
+          </Section>
+
+          <Section id="technical-performance" title="Technical Performance">
+            <Field label="How It Works" value={technical.how_it_works} />
+            <Field label="Replaces or Improves" value={technical.replaces_or_improves} />
+            <BulletField
+              label="Performance Metrics Improved"
+              items={technical.performance_metrics_improved}
+            />
+            <BulletField label="Key Inputs" items={technical.key_inputs} />
+            <BulletField label="Key Outputs" items={technical.key_outputs} />
+            <BulletField label="Technical Limitations" items={technical.technical_limitations} />
+          </Section>
+
+          <Section id="environmental-performance" title="Environmental Performance">
+            <Field
+              label="Reported GHG Reduction"
+              value={displayValue(environmental.reported_ghg_reduction_percent)}
+            />
+            <Field
+              label="Absolute Emissions Intensity"
+              value={displayValue(environmental.absolute_emissions_intensity)}
+            />
+            <BulletField
+              label="Lifecycle Stages Affected"
+              items={environmental.lifecycle_stage_affected}
+            />
+            <BulletField label="Environmental Benefits" items={environmental.environmental_benefits} />
+            <BulletField
+              label="Environmental Tradeoffs"
+              items={environmental.environmental_tradeoffs}
+            />
+          </Section>
+
+          <Section id="cost-and-market" title="Cost and Market">
+            <Field
+              label="Reported Cost Impact"
+              value={displayValue(market.reported_cost_impact)}
+            />
+            <BulletField label="Cost Drivers" items={market.cost_drivers} />
+            <Field label="Commercialization Status" value={market.commercialization_status} />
+            <BulletField label="Target Customers" items={market.target_customers} />
+            <BulletField label="Adoption Barriers" items={market.adoption_barriers} />
+          </Section>
+
+          <Section id="evidence-confidence" title="Evidence and Confidence">
+            <div className="mb-4">
+              <ConfidenceBadge level={evidence.confidence_level} />
             </div>
-          </section>
+            {evidence.sources.length > 0 ? (
+              <ul className="space-y-3">
+                {evidence.sources.map((source, i) => (
+                  <li
+                    key={i}
+                    className="rounded-md border border-border bg-card px-4 py-3"
+                  >
+                    <p className="text-[14px] font-medium text-foreground">{source.title}</p>
+                    <p className="mt-1 text-[12px] text-muted-foreground">
+                      {source.publisher || "Unknown publisher"}
+                      {source.year ? ` · ${source.year}` : ""}
+                      {` · ${source.source_type}`}
+                    </p>
+                    {source.url && (
+                      <a
+                        href={source.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-2 inline-flex items-center gap-1 text-[12px] font-medium text-foreground/80 hover:text-foreground"
+                      >
+                        Open source
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-[14px] text-muted-foreground">Not available</p>
+            )}
+          </Section>
+
+          <Section id="missing-assumptions" title="Missing Information / Assumptions">
+            <BulletField label="Missing Information" items={evidence.missing_information} />
+            <BulletField label="Assumptions" items={evidence.assumptions} />
+          </Section>
         </main>
       </div>
     </div>
@@ -155,163 +230,71 @@ function SidebarLink({ href, label }: { href: string; label: string }) {
   );
 }
 
-function RetrievalSummary({ report }: { report: ResearchReport }) {
-  const { internet_sources_found, scientific_paper_sources_found, edison_enabled } =
-    report.retrieval_summary;
+function Section({
+  id,
+  title,
+  children,
+}: {
+  id: string;
+  title: string;
+  children: ReactNode;
+}) {
   return (
-    <div className="grid grid-cols-1 gap-px overflow-hidden rounded-md border border-border bg-border sm:grid-cols-3">
-      <Metric
-        label="Internet Sources"
-        value={internet_sources_found.toString()}
-        sub="Found"
-      />
-      <Metric
-        label="Scientific Papers"
-        value={scientific_paper_sources_found.toString()}
-        sub="Found"
-      />
-      <Metric
-        label="Scientific Literature"
-        value={edison_enabled ? "Enabled" : "Not Available"}
-        sub={edison_enabled ? "Edison index online" : "Offline for this run"}
-        muted={!edison_enabled}
-      />
-    </div>
+    <section id={id} className="scroll-mt-24">
+      <h2 className="mb-6 font-serif text-2xl font-semibold tracking-tight">{title}</h2>
+      <div className="space-y-5">{children}</div>
+    </section>
   );
 }
 
-function Metric({
-  label,
-  value,
-  sub,
-  muted,
-}: {
-  label: string;
-  value: string;
-  sub: string;
-  muted?: boolean;
-}) {
+function Field({ label, value }: { label: string; value: string }) {
+  const display = displayValue(value);
+  const unavailable = display === "Not available";
   return (
-    <div className="bg-card p-5">
-      <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+    <div>
+      <p className="mb-1 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
         {label}
       </p>
       <p
         className={
-          "mt-2 font-serif text-2xl font-semibold tracking-tight " +
-          (muted ? "text-muted-foreground" : "text-foreground")
+          "font-serif text-[16px] leading-[1.75] " +
+          (unavailable ? "text-muted-foreground italic" : "text-foreground/90")
         }
       >
-        {value}
+        {display}
       </p>
-      <p className="mt-1 text-[12px] text-muted-foreground">{sub}</p>
     </div>
   );
 }
 
-function AnswerCard({ answer, index }: { answer: Answer; index: number }) {
-  const [open, setOpen] = useState(true);
-  const notFound = answer.answer.trim() === "Not Found";
+function BulletField({ label, items }: { label: string; items: string[] }) {
+  if (!items.length) {
+    return <Field label={label} value="" />;
+  }
   return (
-    <article
-      id={slug(answer.question)}
-      className="scroll-mt-24 overflow-hidden rounded-md border border-border bg-card"
-    >
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-start justify-between gap-4 px-6 py-5 text-left transition-colors hover:bg-accent/40"
-      >
-        <div className="min-w-0 flex-1">
-          <div className="mb-2 flex items-center gap-2">
-            <span className="font-mono text-[11px] tracking-widest text-muted-foreground">
-              Q{String(index).padStart(2, "0")}
-            </span>
-            <ConfidenceBadge confidence={answer.confidence} />
-            {answer.source_type_used.map((t) => (
-              <SourceBadge key={t} type={t} />
-            ))}
-          </div>
-          <h3 className="font-serif text-[19px] font-semibold leading-snug tracking-tight">
-            {answer.question}
-          </h3>
-        </div>
-        <ChevronDown
-          className={
-            "mt-1 h-4 w-4 shrink-0 text-muted-foreground transition-transform " +
-            (open ? "rotate-180" : "")
-          }
-          strokeWidth={2}
-        />
-      </button>
-
-      {open && (
-        <div className="border-t border-border px-6 py-6">
-          {notFound ? (
-            <div className="flex gap-3 rounded-md border border-confidence-low/30 bg-confidence-low-bg/60 p-4">
-              <AlertTriangle
-                className="mt-0.5 h-4 w-4 shrink-0 text-confidence-low"
-                strokeWidth={2}
-              />
-              <div>
-                <p className="text-[14px] font-semibold text-confidence-low">
-                  Information Not Available
-                </p>
-                <p className="mt-1 text-[13px] leading-relaxed text-foreground/80">
-                  The agent was unable to find authoritative sources for this question.
-                  Confidence is marked Low.
-                </p>
-              </div>
-            </div>
-          ) : (
-            <p className="font-serif text-[16px] leading-[1.75] text-foreground/90">
-              {answer.answer}
-            </p>
-          )}
-
-          {answer.sources.length > 0 && (
-            <div className="mt-6 border-t border-border pt-4">
-              <p className="mb-3 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-                Sources ({answer.sources.length})
-              </p>
-              <ul className="space-y-2">
-                {answer.sources.map((s, i) => (
-                  <li
-                    key={i}
-                    className="flex items-start justify-between gap-4 rounded border border-border/70 bg-background px-3 py-2.5"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate text-[13px] font-medium text-foreground">
-                        {s.title}
-                      </p>
-                      <p className="truncate text-[12px] text-muted-foreground">
-                        {s.url}
-                      </p>
-                    </div>
-                    <a
-                      href={s.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex shrink-0 items-center gap-1 rounded border border-border bg-card px-2.5 py-1 text-[12px] font-medium transition-colors hover:bg-accent"
-                    >
-                      Open
-                      <ExternalLink className="h-3 w-3" strokeWidth={2} />
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-      )}
-    </article>
+    <div>
+      <p className="mb-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+        {label}
+      </p>
+      <ul className="list-disc space-y-1 pl-5 font-serif text-[16px] leading-[1.75] text-foreground/90">
+        {items.map((item) => (
+          <li key={item}>{item}</li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
-function ConfidenceBadge({ confidence }: { confidence: string }) {
-  const normalized: Confidence = ["High", "Medium", "Low"].includes(confidence)
-    ? (confidence as Confidence)
-    : "Low";
-  const styles: Record<Confidence, string> = {
+function Tag({ label }: { label: string }) {
+  return (
+    <span className="rounded-sm border border-border bg-card px-2 py-1 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+      {label}
+    </span>
+  );
+}
+
+function ConfidenceBadge({ level }: { level: ConfidenceLevel }) {
+  const styles: Record<ConfidenceLevel, string> = {
     High: "bg-confidence-high-bg text-confidence-high",
     Medium: "bg-confidence-medium-bg text-confidence-medium",
     Low: "bg-confidence-low-bg text-confidence-low",
@@ -320,28 +303,11 @@ function ConfidenceBadge({ confidence }: { confidence: string }) {
     <span
       className={
         "inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-widest " +
-        styles[normalized]
+        styles[level]
       }
     >
       <span className="h-1.5 w-1.5 rounded-full bg-current" />
-      {normalized}
-    </span>
-  );
-}
-
-function SourceBadge({ type }: { type: SourceType }) {
-  if (type === "internet") {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-sm bg-source-internet-bg px-1.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-widest text-source-internet">
-        <Globe className="h-2.5 w-2.5" strokeWidth={2.5} />
-        Internet
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex items-center gap-1 rounded-sm bg-source-paper-bg px-1.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-widest text-source-paper">
-      <FileText className="h-2.5 w-2.5" strokeWidth={2.5} />
-      Scientific Paper
+      {level} Confidence
     </span>
   );
 }

@@ -9,12 +9,12 @@ DEFAULT_QUESTION_SET = "evaluation_questions"
 
 _DEFAULT_DESCRIPTIONS: dict[str, dict[str, str]] = {
     "evaluation_questions": {
-        "label": "General Evaluation",
-        "description": "Broad technology assessment across environmental, economic, and deployment dimensions.",
+        "label": "Decarbonization Technology Evaluation Framework",
+        "description": "Comprehensive evaluation across technology overview, supply chain, performance, environmental, energy, economic, deployment, and evidence dimensions.",
     },
     "general_decarbonization": {
-        "label": "General Decarbonization",
-        "description": "CO₂ reduction potential, abatement cost, and lifecycle emissions impact.",
+        "label": "Decarbonization Technology Evaluation Framework",
+        "description": "Comprehensive evaluation across technology overview, supply chain, performance, environmental, energy, economic, deployment, and evidence dimensions.",
     },
     "carbon_capture": {
         "label": "Carbon Capture",
