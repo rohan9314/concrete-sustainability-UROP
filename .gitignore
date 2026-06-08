@@ -1,6 +1,8 @@
 # Environment
 .env
 backend/.env
+*.local
+.dev.vars
 
 # Python
 __pycache__/
@@ -12,13 +14,36 @@ __pycache__/
 venv/
 backend/outputs/*.json
 
-# Node
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Node / frontend build
 node_modules/
 dist/
+dist-ssr/
+.output/
+.vinxi/
+.tanstack/**
+.nitro/
 frontend/dist/
 frontend/node_modules/
+
+# Wrangler / Cloudflare
+.wrangler/
 
 # OS / editor
 .DS_Store
 .idea/
-.vscode/
+.vscode/*
+!.vscode/extensions.json
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
