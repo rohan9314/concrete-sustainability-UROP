@@ -2,7 +2,6 @@
 
 from typing import Callable
 
-from edison import is_edison_configured, retrieve_edison_papers
 from executive_summary import generate_executive_summary
 from llm import (
     InvalidJSONError,
@@ -11,19 +10,20 @@ from llm import (
     extract_technology_info,
     validate_api_key as validate_openai_key,
 )
+from paper_records import (
+    PaperDatabaseConfigError,
+    PaperDatabaseLoadError,
+    PaperDatabaseNotFoundError,
+    is_paper_database_available,
+)
 from questions import (
     InvalidQuestionSetError,
     QuestionSetNotFoundError,
     load_questions,
     question_set_name,
 )
+from retrieval import retrieve_all_sources
 from schema import RetrievalSummary
-from search import (
-    MissingAPIKeyError as TavilyMissingKeyError,
-    NoSearchResultsError,
-    retrieve_internet_sources,
-    validate_api_key as validate_tavily_key,
-)
 from serializer import normalize_result
 
 ProgressCallback = Callable[[str, str], None]
@@ -56,7 +56,8 @@ def run_research_pipeline(
     """
     Run the full research workflow and return a normalized result dict.
 
-    Preserves the existing internet search workflow and optionally adds Edison papers.
+    Academic papers are retrieved from the local pickle database and internet
+    sources are retrieved via Tavily. Both streams use multiple targeted queries.
     """
     technology_name = subject.strip()
     if not technology_name:
@@ -71,9 +72,8 @@ def run_research_pipeline(
         raise ResearchPipelineError("INVALID_QUESTION_SET", str(exc)) from exc
 
     try:
-        validate_tavily_key()
         validate_openai_key()
-    except (TavilyMissingKeyError, MissingAPIKeyError) as exc:
+    except MissingAPIKeyError as exc:
         raise ResearchPipelineError("CONFIGURATION_ERROR", str(exc)) from exc
 
     _report_progress(
@@ -82,45 +82,50 @@ def run_research_pipeline(
         f"Preparing question set: {set_name} ({len(questions)} questions)",
     )
 
-    _report_progress(
-        progress_callback,
-        "searching_internet",
-        "Searching internet sources...",
-    )
     try:
-        internet_sources = retrieve_internet_sources(technology_name)
-    except NoSearchResultsError as exc:
-        raise ResearchPipelineError("NO_SEARCH_RESULTS", str(exc)) from exc
-    except TavilyMissingKeyError as exc:
-        raise ResearchPipelineError("CONFIGURATION_ERROR", str(exc)) from exc
+        local_db_available = is_paper_database_available()
+    except PaperDatabaseConfigError as exc:
+        raise ResearchPipelineError("PAPER_DATABASE_NOT_CONFIGURED", str(exc)) from exc
 
-    edison_enabled = is_edison_configured()
-    if edison_enabled:
-        _report_progress(
-            progress_callback,
-            "searching_scientific_literature",
-            "Searching scientific literature (Edison API)...",
+    if not local_db_available:
+        raise ResearchPipelineError(
+            "PAPER_DATABASE_NOT_FOUND",
+            "Local paper database not found. Set PAPER_RECORDS_PATH in backend/.env "
+            "to the absolute path of your confidential paper database file.",
         )
-        paper_sources = retrieve_edison_papers(technology_name)
-    else:
-        _report_progress(
-            progress_callback,
-            "searching_scientific_literature",
-            "Edison API key not configured. Continuing with internet sources only.",
-        )
-        paper_sources = []
 
-    all_sources = internet_sources + paper_sources
+    try:
+        paper_sources, internet_sources = retrieve_all_sources(
+            technology_name,
+            progress_callback=progress_callback,
+        )
+    except PaperDatabaseConfigError as exc:
+        raise ResearchPipelineError("PAPER_DATABASE_NOT_CONFIGURED", str(exc)) from exc
+    except PaperDatabaseNotFoundError as exc:
+        raise ResearchPipelineError("PAPER_DATABASE_NOT_FOUND", str(exc)) from exc
+    except PaperDatabaseLoadError as exc:
+        raise ResearchPipelineError("PAPER_DATABASE_LOAD_ERROR", str(exc)) from exc
+
+    if not paper_sources and not internet_sources:
+        raise ResearchPipelineError(
+            "NO_SOURCES_FOUND",
+            "No local paper matches or internet sources were found for this subject.",
+        )
+
+    all_sources = paper_sources + internet_sources
     retrieval_summary = RetrievalSummary(
         internet_sources_found=len(internet_sources),
         scientific_paper_sources_found=len(paper_sources),
-        edison_enabled=edison_enabled,
+        local_paper_database_enabled=local_db_available,
     )
 
     _report_progress(
         progress_callback,
         "analyzing_evidence",
-        "Extracting structured answers with OpenAI...",
+        (
+            f"Extracting answers from {len(paper_sources)} papers and "
+            f"{len(internet_sources)} internet sources (batched)..."
+        ),
     )
     try:
         evaluation = extract_technology_info(

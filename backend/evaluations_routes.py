@@ -19,8 +19,8 @@ def evaluate_technology(request: EvaluateRequest) -> TechnologyEvaluation:
     Return a mock TechnologyEvaluation for the requested technology.
 
     # TODO: Replace build_mock_evaluation() with:
-    # 1. Tavily internet source retrieval (search.retrieve_internet_sources)
-    # 2. Edison paper retrieval (edison.retrieve_edison_papers)
+    # 1. Local pickle paper retrieval (paper_records.retrieve_paper_sources)
+    # 2. Optional Tavily internet source retrieval (search.retrieve_internet_sources)
     # 3. OpenAI extraction mapped into TechnologyEvaluation schema
     """
     technology_name = request.technology_name.strip()

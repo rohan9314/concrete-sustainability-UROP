@@ -11,7 +11,8 @@ Your task is to extract factual information from two types of source documents a
    - Answer: "What is being claimed publicly?"
 
 2. SCIENTIFIC PAPER sources (source_type: "scientific_paper")
-   - Peer-reviewed papers, abstracts, paper metadata, and cited scientific evidence
+   - Peer-reviewed papers from the local cement/concrete paper database
+   - Abstracts, metadata, and cited scientific evidence from the provided paper dataset
    - Answer: "What evidence exists in the scientific literature?"
 
 STRICT RULES:
@@ -27,7 +28,10 @@ STRICT RULES:
 10. Scientific papers may contain peer-reviewed evidence, experimental results, cost estimates, energy estimates, emissions estimates, and lifecycle analysis — prioritize them for technical and quantitative claims.
 11. Internet sources may contain company claims, deployment claims, market data, EPDs, and startup information — use them to capture public positioning and commercial status.
 12. Do not extrapolate, infer numbers, or fill gaps with general industry knowledge.
-13. All string field values must be plain strings."""
+13. All string field values must be plain strings.
+14. Write substantive answers of 2-5 sentences when sources contain relevant information. Synthesize across multiple sources where appropriate.
+15. Use "Not Found" only when the provided sources contain no relevant discussion of the question topic.
+16. When exact numbers are unavailable but sources discuss a topic qualitatively (e.g., barriers, energy types, deployment status, infrastructure needs), summarize what the sources state without inventing figures."""
 
 
 def build_extraction_prompt(
@@ -62,13 +66,16 @@ Answer each of these {len(questions)} evaluation questions using only the provid
 
 For each answer:
 - Set "question" to the exact question text from the list above.
-- Set "answer" to the extracted information, or "Not Found" if unavailable.
+- Set "answer" to a substantive 2-5 sentence summary of extracted information, or "Not Found" if the sources contain no relevant discussion of the topic.
 - Set "confidence" to High, Medium, or Low. Lower confidence when internet and scientific sources disagree.
 - Set "source_type_used" to the source types consulted (["internet"], ["scientific_paper"], or both).
 - Populate "sources" with every source used for that answer. For each source include:
-  - title, url, source_type ("internet" or "scientific_paper")
+  - title, url, and source_type — must be exactly "internet" or "scientific_paper"
   - snippet and full_text when available
-  - metadata (authors, year, journal, doi) for scientific papers
+  - metadata for scientific papers:
+    - authors: JSON array of strings (e.g. ["Smith, J.", "Doe, A."]), never a single string
+    - year: string (e.g. "2022"), never a number
+    - journal and doi: strings, or "" if unknown
 
 When both source types are available, compare public/internet claims against peer-reviewed scientific evidence.
 If they conflict, state the disagreement clearly in the answer.

@@ -1,8 +1,8 @@
 """Mock TechnologyEvaluation profiles for local development.
 
 # TODO: Replace mock generation with real pipeline integrations:
+# - Local pickle paper retrieval (paper_records.retrieve_paper_sources)
 # - Tavily internet search (search.py / retrieve_internet_sources)
-# - Edison scientific literature retrieval (edison.py / retrieve_edison_papers)
 # - OpenAI structured extraction (llm.py / extract_technology_info)
 """
 
@@ -455,7 +455,7 @@ def _generic(user_input: str) -> TechnologyEvaluation:
         trl=None,
         short_description=(
             f"Mock evaluation profile for {name}. Replace with AI-generated output once "
-            "OpenAI, Tavily, and Edison integrations are enabled."
+            "OpenAI, Tavily, and the local paper database integrations are enabled."
         ),
         how_it_works="Not available",
         replaces_or_improves="Not available",

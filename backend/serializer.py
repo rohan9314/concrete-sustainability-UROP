@@ -12,22 +12,30 @@ from schema import (
 def _normalize_metadata(raw: dict | None) -> dict:
     metadata = raw if isinstance(raw, dict) else {}
     authors = metadata.get("authors")
-    if not isinstance(authors, list):
+    if isinstance(authors, str):
+        cleaned = authors.strip()
+        authors = [] if not cleaned or cleaned == "Not Found" else [cleaned]
+    elif not isinstance(authors, list):
         authors = []
     return {
         "authors": [str(a) for a in authors if str(a).strip()],
-        "year": str(metadata.get("year") or ""),
-        "journal": str(metadata.get("journal") or ""),
-        "doi": str(metadata.get("doi") or ""),
+        "year": str(metadata.get("year") or "").strip(),
+        "journal": str(metadata.get("journal") or "").strip(),
+        "doi": str(metadata.get("doi") or "").strip(),
     }
 
 
 def _normalize_source(raw: dict | None) -> dict:
     source = raw if isinstance(raw, dict) else {}
+    raw_type = str(source.get("source_type") or "").strip().lower()
+    if raw_type == "internet":
+        source_type = "internet"
+    else:
+        source_type = "scientific_paper"
     return {
         "title": str(source.get("title") or ""),
         "url": str(source.get("url") or ""),
-        "source_type": str(source.get("source_type") or ""),
+        "source_type": source_type,
         "snippet": str(source.get("snippet") or ""),
         "full_text": str(source.get("full_text") or ""),
         "metadata": _normalize_metadata(source.get("metadata")),
@@ -65,7 +73,9 @@ def _normalize_retrieval_summary(raw: dict | RetrievalSummary | None) -> dict:
         "scientific_paper_sources_found": int(
             summary.get("scientific_paper_sources_found") or 0
         ),
-        "edison_enabled": bool(summary.get("edison_enabled")),
+        "local_paper_database_enabled": bool(
+            summary.get("local_paper_database_enabled")
+        ),
     }
 
 

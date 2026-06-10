@@ -1,8 +1,15 @@
 import type { TechnologyEvaluation } from "@/types/technologyEvaluation";
 import type { ResearchReport } from "./research-types";
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") || "http://localhost:8000";
+// In dev, leave VITE_API_BASE_URL empty to use the Vite /api proxy (same origin).
+// Set it explicitly (e.g. http://localhost:8000) to call the backend directly.
+const API_BASE_URL = (() => {
+  const configured = import.meta.env.VITE_API_BASE_URL;
+  if (typeof configured === "string" && configured.trim()) {
+    return configured.replace(/\/$/, "");
+  }
+  return "";
+})();
 
 export interface QuestionSet {
   id: string;
@@ -165,8 +172,8 @@ export function pollResearchJob(
 
 export const PROGRESS_LABELS: Record<string, string> = {
   preparing_question_set: "Preparing Question Set",
+  searching_local_papers: "Searching Local Paper Database",
   searching_internet: "Searching Internet Sources",
-  searching_scientific_literature: "Searching Scientific Literature",
   analyzing_evidence: "Analyzing Evidence",
   generating_report: "Generating Report",
 };

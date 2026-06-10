@@ -33,7 +33,7 @@ export interface ResearchReport {
   retrieval_summary: {
     internet_sources_found: number;
     scientific_paper_sources_found: number;
-    edison_enabled: boolean;
+    local_paper_database_enabled: boolean;
   };
 }
 

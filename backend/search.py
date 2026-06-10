@@ -143,7 +143,12 @@ def _extract_content(item: dict) -> str:
     return item.get("snippet", "") or ""
 
 
-def search_technology(technology_name: str, max_results: int = 8) -> list[SearchResult]:
+def search_technology(
+    technology_name: str,
+    max_results: int = 8,
+    *,
+    query: str | None = None,
+) -> list[SearchResult]:
     """
     Search Tavily for high-quality sources about a decarbonization technology.
 
@@ -152,7 +157,7 @@ def search_technology(technology_name: str, max_results: int = 8) -> list[Search
     api_key = validate_api_key()
     client = TavilyClient(api_key=api_key)
 
-    query = _build_query(technology_name)
+    query = query or _build_query(technology_name)
 
     try:
         response = client.search(
@@ -219,40 +224,123 @@ def retrieve_internet_sources(technology_name: str, max_results: int = 8) -> lis
 
     This wraps search_technology without changing its behavior.
     """
-    results = search_technology(technology_name, max_results=max_results)
-    return [_search_result_to_source(result) for result in results]
+    return retrieve_internet_sources_multi(
+        [_build_query(technology_name)],
+        max_per_query=max_results,
+        max_total=max_results,
+        technology_name=technology_name,
+    )
+
+
+def retrieve_internet_sources_multi(
+    queries: list[str],
+    *,
+    max_per_query: int = 6,
+    max_total: int = 20,
+    technology_name: str = "",
+) -> list[dict]:
+    """Run multiple Tavily searches, deduplicate by URL, and return ranked sources."""
+    best_results: dict[str, SearchResult] = {}
+
+    for query in queries:
+        query = query.strip()
+        if not query:
+            continue
+
+        try:
+            results = search_technology(
+                technology_name or query,
+                max_results=max_per_query,
+                query=query,
+            )
+        except NoSearchResultsError:
+            continue
+
+        for result in results:
+            url_key = result.url.strip().lower()
+            if not url_key or url_key in best_results:
+                continue
+            best_results[url_key] = result
+
+    ranked = sorted(
+        best_results.values(),
+        key=lambda result: _score_result(result.url, result.title),
+        reverse=True,
+    )
+    return [_search_result_to_source(result) for result in ranked[:max_total]]
+
+
+def _format_single_source_for_llm(source: dict, index: int, *, origin: str) -> str:
+    metadata = source.get("metadata") or {}
+    body = source.get("full_text") or source.get("snippet") or "No content available."
+    source_type = source.get("source_type") or "unknown"
+    meta_lines: list[str] = []
+
+    authors = metadata.get("authors") or []
+    if authors:
+        meta_lines.append(f"Authors: {', '.join(authors)}")
+    if metadata.get("year"):
+        meta_lines.append(f"Year: {metadata['year']}")
+    if metadata.get("journal"):
+        meta_lines.append(f"Journal: {metadata['journal']}")
+    if metadata.get("doi"):
+        meta_lines.append(f"DOI: {metadata['doi']}")
+
+    metadata_block = "\n".join(meta_lines)
+    if metadata_block:
+        metadata_block = f"{metadata_block}\n"
+
+    return (
+        f"--- {origin.upper()} SOURCE {index} ---\n"
+        f"Title: {source.get('title', '')}\n"
+        f"URL: {source.get('url', '')}\n"
+        f"Source Type: {source_type}\n"
+        f"Origin: {origin}\n"
+        f"{metadata_block}"
+        f"Content:\n{body}\n"
+    )
 
 
 def format_sources_for_llm(sources: list[dict]) -> str:
-    """Format standardized sources into a single text block for the LLM."""
+    """Format standardized sources into labeled paper and internet sections for the LLM."""
+    paper_sources = [
+        source for source in sources if source.get("source_type") == "scientific_paper"
+    ]
+    internet_sources = [
+        source for source in sources if source.get("source_type") == "internet"
+    ]
+    other_sources = [
+        source
+        for source in sources
+        if source.get("source_type") not in {"scientific_paper", "internet"}
+    ]
+
     sections: list[str] = []
 
-    for i, source in enumerate(sources, start=1):
-        metadata = source.get("metadata") or {}
-        body = source.get("full_text") or source.get("snippet") or "No content available."
-        meta_lines: list[str] = []
+    if paper_sources:
+        sections.append("=== SCIENTIFIC PAPERS (Local Paper Database) ===")
+        for index, source in enumerate(paper_sources, start=1):
+            sections.append(
+                _format_single_source_for_llm(
+                    source,
+                    index,
+                    origin="Scientific paper (local database)",
+                )
+            )
 
-        authors = metadata.get("authors") or []
-        if authors:
-            meta_lines.append(f"Authors: {', '.join(authors)}")
-        if metadata.get("year"):
-            meta_lines.append(f"Year: {metadata['year']}")
-        if metadata.get("journal"):
-            meta_lines.append(f"Journal: {metadata['journal']}")
-        if metadata.get("doi"):
-            meta_lines.append(f"DOI: {metadata['doi']}")
+    if internet_sources:
+        sections.append("=== INTERNET SOURCES ===")
+        for index, source in enumerate(internet_sources, start=1):
+            sections.append(
+                _format_single_source_for_llm(source, index, origin="Internet")
+            )
 
-        metadata_block = "\n".join(meta_lines)
-        if metadata_block:
-            metadata_block = f"{metadata_block}\n"
+    if other_sources:
+        sections.append("=== OTHER SOURCES ===")
+        for index, source in enumerate(other_sources, start=1):
+            sections.append(_format_single_source_for_llm(source, index, origin="Other"))
 
-        sections.append(
-            f"--- SOURCE {i} ---\n"
-            f"Title: {source.get('title', '')}\n"
-            f"URL: {source.get('url', '')}\n"
-            f"Source Type: {source.get('source_type', '')}\n"
-            f"{metadata_block}"
-            f"Content:\n{body}\n"
-        )
+    if not sections:
+        return "No sources available."
 
     return "\n".join(sections)

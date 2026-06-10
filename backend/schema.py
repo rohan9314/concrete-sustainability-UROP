@@ -1,6 +1,6 @@
 """Pydantic models for structured technology evaluation output."""
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class SourceMetadata(BaseModel):
@@ -10,6 +10,25 @@ class SourceMetadata(BaseModel):
     year: str = ""
     journal: str = ""
     doi: str = ""
+
+    @field_validator("authors", mode="before")
+    @classmethod
+    def normalize_authors(cls, value: object) -> list[str]:
+        if value is None:
+            return []
+        if isinstance(value, str):
+            cleaned = value.strip()
+            return [] if not cleaned or cleaned == "Not Found" else [cleaned]
+        if isinstance(value, list):
+            return [str(item).strip() for item in value if str(item).strip()]
+        return []
+
+    @field_validator("year", "journal", "doi", mode="before")
+    @classmethod
+    def normalize_text_fields(cls, value: object) -> str:
+        if value is None:
+            return ""
+        return str(value).strip()
 
 
 class Source(BaseModel):
@@ -38,7 +57,7 @@ class RetrievalSummary(BaseModel):
 
     internet_sources_found: int = 0
     scientific_paper_sources_found: int = 0
-    edison_enabled: bool = False
+    local_paper_database_enabled: bool = False
 
 
 class TechnologyEvaluation(BaseModel):

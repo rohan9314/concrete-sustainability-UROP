@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
-import { EXAMPLE_TECHNOLOGIES } from "@/types/technologyEvaluation";
+import { useEffect, useState } from "react";
+import { fetchQuestionSets, startResearch, type QuestionSet } from "@/lib/api";
+import { EXAMPLE_TOPICS } from "@/lib/research-types";
 import { Search, ArrowRight, BookOpen } from "lucide-react";
 
 export const Route = createFileRoute("/")({
@@ -10,7 +11,7 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "Evaluate cement and concrete decarbonization technologies with structured technology assessments.",
+          "Analyze cement and concrete decarbonization technologies using local paper sources and internet research.",
       },
     ],
   }),
@@ -20,16 +21,49 @@ export const Route = createFileRoute("/")({
 function SearchPage() {
   const navigate = useNavigate();
   const [topic, setTopic] = useState("");
+  const [questionSet, setQuestionSet] = useState<string>("");
+  const [questionSets, setQuestionSets] = useState<QuestionSet[]>([]);
+  const [loadingSets, setLoadingSets] = useState(true);
+  const [setsError, setSetsError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  function runEvaluation(name?: string) {
-    const technologyName = (name ?? topic).trim();
-    if (!technologyName) return;
+  useEffect(() => {
+    fetchQuestionSets()
+      .then((data) => {
+        setQuestionSets(data.question_sets);
+        setQuestionSet(data.default);
+      })
+      .catch((error: Error) => {
+        const msg = error.message;
+        setSetsError(
+          msg === "Failed to fetch"
+            ? "Cannot reach the backend. Start it with: cd backend && uvicorn api:app --reload --port 8000"
+            : msg,
+        );
+      })
+      .finally(() => setLoadingSets(false));
+  }, []);
+
+  const selectedSet = questionSets.find((s) => s.id === questionSet);
+
+  async function runResearch(t?: string) {
+    const subject = (t ?? topic).trim();
+    if (!subject || !questionSet || submitting) return;
+
+    setSubmitting(true);
     setSubmitError(null);
-    navigate({
-      to: "/loading",
-      search: { technology: technologyName },
-    });
+
+    try {
+      const job = await startResearch(subject, questionSet);
+      navigate({
+        to: "/loading",
+        search: { topic: subject, set: questionSet, jobId: job.job_id },
+      });
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : "Failed to start research.");
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -43,7 +77,7 @@ function SearchPage() {
             </span>
           </div>
           <span className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
-            v0.2 · Mock evaluation API
+            v0.3 · Research pipeline
           </span>
         </div>
       </header>
@@ -51,23 +85,23 @@ function SearchPage() {
       <main className="mx-auto max-w-3xl px-8 pb-24 pt-20">
         <div className="mb-14">
           <p className="mb-3 font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
-            New Evaluation
+            New Research
           </p>
           <h1 className="mb-5 font-serif text-[44px] font-semibold leading-[1.05] tracking-tight">
             Concrete Decarbonization
             <br />
-            Technology Evaluation
+            Research Agent
           </h1>
           <p className="max-w-2xl text-[17px] leading-relaxed text-muted-foreground">
-            Enter a technology or company name to receive a standardized evaluation
-            across technical, environmental, economic, and evidence dimensions.
+            Analyze technologies against the full 26-question Decarbonization Technology
+            Evaluation Framework using local paper sources and internet research.
           </p>
         </div>
 
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            runEvaluation();
+            runResearch();
           }}
           className="space-y-8"
         >
@@ -76,7 +110,7 @@ function SearchPage() {
               htmlFor="topic"
               className="mb-2 block font-mono text-[11px] uppercase tracking-widest text-muted-foreground"
             >
-              Technology Name
+              Research Subject
             </label>
             <div className="relative">
               <Search
@@ -87,13 +121,45 @@ function SearchPage() {
                 id="topic"
                 value={topic}
                 onChange={(e) => setTopic(e.target.value)}
-                placeholder="e.g. CarbonCure, Sublime Systems, Fortera…"
+                placeholder="e.g. Calcium Looping, LC3 Cement, CarbonCure…"
                 className="h-14 w-full rounded-md border border-border bg-card pl-11 pr-4 text-[15px] outline-none transition-colors placeholder:text-muted-foreground/70 focus:border-foreground/40 focus:ring-2 focus:ring-ring/20"
               />
             </div>
-            <p className="mt-2 text-[13px] text-muted-foreground">
-              Enter any technology, company, material, or decarbonization approach.
-            </p>
+          </div>
+
+          <div>
+            <label
+              htmlFor="qset"
+              className="mb-2 block font-mono text-[11px] uppercase tracking-widest text-muted-foreground"
+            >
+              Question Set
+            </label>
+            <select
+              id="qset"
+              value={questionSet}
+              onChange={(e) => setQuestionSet(e.target.value)}
+              disabled={loadingSets || !!setsError}
+              className="h-12 w-full rounded-md border border-border bg-card px-4 text-[15px] outline-none focus:border-foreground/40 focus:ring-2 focus:ring-ring/20 disabled:opacity-60"
+            >
+              {loadingSets ? (
+                <option value="">Loading question sets...</option>
+              ) : (
+                questionSets.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.label} ({s.question_count} questions)
+                  </option>
+                ))
+              )}
+            </select>
+            {setsError ? (
+              <p className="mt-2 text-[13px] text-confidence-low">
+                Could not load question sets: {setsError}
+              </p>
+            ) : (
+              <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
+                {selectedSet?.description}
+              </p>
+            )}
           </div>
 
           {submitError && (
@@ -102,10 +168,10 @@ function SearchPage() {
 
           <button
             type="submit"
-            disabled={!topic.trim()}
+            disabled={!topic.trim() || !questionSet || loadingSets || submitting}
             className="group inline-flex h-12 w-full items-center justify-center gap-2 rounded-md bg-primary px-6 text-[14px] font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            Evaluate Technology
+            {submitting ? "Starting..." : "Run Research"}
             <ArrowRight
               className="h-4 w-4 transition-transform group-hover:translate-x-0.5"
               strokeWidth={2}
@@ -115,18 +181,19 @@ function SearchPage() {
 
         <div className="mt-14 border-t border-border pt-8">
           <p className="mb-4 font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
-            Example technologies
+            Example subjects
           </p>
           <div className="flex flex-wrap gap-2">
-            {EXAMPLE_TECHNOLOGIES.map((ex) => (
+            {EXAMPLE_TOPICS.map((ex) => (
               <button
                 key={ex}
                 type="button"
                 onClick={() => {
                   setTopic(ex);
-                  runEvaluation(ex);
+                  runResearch(ex);
                 }}
-                className="rounded-full border border-border bg-card px-3.5 py-1.5 text-[13px] text-foreground/80 transition-colors hover:border-foreground/40 hover:bg-accent"
+                disabled={!questionSet || loadingSets || submitting}
+                className="rounded-full border border-border bg-card px-3.5 py-1.5 text-[13px] text-foreground/80 transition-colors hover:border-foreground/40 hover:bg-accent disabled:opacity-40"
               >
                 {ex}
               </button>

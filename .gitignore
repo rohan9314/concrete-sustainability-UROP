@@ -1,8 +1,13 @@
 # Environment
 .env
+.env.local
+.env.*.local
 backend/.env
 *.local
 .dev.vars
+
+# Confidential local datasets
+*.pkl
 
 # Python
 __pycache__/

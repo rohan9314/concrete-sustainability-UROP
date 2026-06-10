@@ -9,7 +9,9 @@ from openai import OpenAI
 from pydantic import ValidationError
 
 from prompts import SYSTEM_PROMPT, build_extraction_prompt
-from schema import RetrievalSummary, TechnologyEvaluation
+from retrieval import LLM_QUESTION_BATCH_SIZE
+from schema import QuestionAnswer, RetrievalSummary, TechnologyEvaluation
+from serializer import _normalize_answer, normalize_result
 
 load_dotenv()
 
@@ -91,27 +93,29 @@ def _normalize_answers(
 
     for expected_question in questions:
         if expected_question in by_question:
-            item = by_question[expected_question]
-            item.setdefault("source_type_used", [])
-            normalized_answers.append(item)
+            normalized_answers.append(
+                _normalize_answer(by_question[expected_question], expected_question)
+            )
             continue
 
         if used_unmatched < len(unmatched):
             item = unmatched[used_unmatched]
             used_unmatched += 1
             item["question"] = expected_question
-            item.setdefault("source_type_used", [])
-            normalized_answers.append(item)
+            normalized_answers.append(_normalize_answer(item, expected_question))
             continue
 
         normalized_answers.append(
-            {
-                "question": expected_question,
-                "answer": "Not Found",
-                "confidence": "Low",
-                "source_type_used": [],
-                "sources": [],
-            }
+            _normalize_answer(
+                {
+                    "question": expected_question,
+                    "answer": "Not Found",
+                    "confidence": "Low",
+                    "source_type_used": [],
+                    "sources": [],
+                },
+                expected_question,
+            )
         )
 
     technology = (data.get("technology") or technology_name).strip() or technology_name
@@ -125,19 +129,28 @@ def _normalize_answers(
     }
 
 
-def extract_technology_info(
+def _validate_evaluation(data: dict) -> TechnologyEvaluation:
+    try:
+        return TechnologyEvaluation.model_validate(data)
+    except ValidationError:
+        coerced = normalize_result(data)
+        try:
+            return TechnologyEvaluation.model_validate(coerced)
+        except ValidationError as exc:
+            raise SchemaValidationError(
+                f"LLM output failed schema validation: {exc}"
+            ) from exc
+
+
+def _extract_single_batch(
     technology_name: str,
     all_sources: list[dict],
     questions: list[str],
-    questions_file: str = "",
-    retrieval_summary: RetrievalSummary | None = None,
-    model: str = DEFAULT_MODEL,
+    questions_file: str,
+    retrieval_summary: RetrievalSummary,
+    model: str,
 ) -> TechnologyEvaluation:
-    """
-    Send combined sources to OpenAI and return a validated TechnologyEvaluation.
-
-    Raises MissingAPIKeyError, InvalidJSONError, or SchemaValidationError on failure.
-    """
+    """Run one OpenAI extraction call for a batch of questions."""
     api_key = validate_api_key()
     client = OpenAI(api_key=api_key)
 
@@ -155,12 +168,6 @@ def extract_technology_info(
         questions,
         internet_count=internet_count,
         paper_count=paper_count,
-    )
-
-    summary = retrieval_summary or RetrievalSummary(
-        internet_sources_found=internet_count,
-        scientific_paper_sources_found=paper_count,
-        edison_enabled=paper_count > 0,
     )
 
     try:
@@ -181,14 +188,75 @@ def extract_technology_info(
         raise InvalidJSONError("OpenAI returned an empty response.")
 
     data = _parse_json_response(raw_content)
-    data = _normalize_answers(data, questions, technology_name, questions_file, summary)
+    data = _normalize_answers(
+        data, questions, technology_name, questions_file, retrieval_summary
+    )
+    return _validate_evaluation(data)
 
-    try:
-        return TechnologyEvaluation.model_validate(data)
-    except ValidationError as exc:
-        raise SchemaValidationError(
-            f"LLM output failed schema validation: {exc}"
-        ) from exc
+
+def extract_technology_info(
+    technology_name: str,
+    all_sources: list[dict],
+    questions: list[str],
+    questions_file: str = "",
+    retrieval_summary: RetrievalSummary | None = None,
+    model: str = DEFAULT_MODEL,
+    batch_size: int = LLM_QUESTION_BATCH_SIZE,
+) -> TechnologyEvaluation:
+    """
+    Send combined sources to OpenAI and return a validated TechnologyEvaluation.
+
+    Large question sets are processed in batches so each question receives more
+    focused attention from the model.
+
+    Raises MissingAPIKeyError, InvalidJSONError, or SchemaValidationError on failure.
+    """
+    internet_count = sum(
+        1 for source in all_sources if source.get("source_type") == "internet"
+    )
+    paper_count = sum(
+        1 for source in all_sources if source.get("source_type") == "scientific_paper"
+    )
+
+    summary = retrieval_summary or RetrievalSummary(
+        internet_sources_found=internet_count,
+        scientific_paper_sources_found=paper_count,
+        local_paper_database_enabled=paper_count > 0,
+    )
+
+    if batch_size <= 0 or len(questions) <= batch_size:
+        return _extract_single_batch(
+            technology_name,
+            all_sources,
+            questions,
+            questions_file,
+            summary,
+            model,
+        )
+
+    merged_answers: list[QuestionAnswer] = []
+    technology = technology_name
+
+    for start in range(0, len(questions), batch_size):
+        batch = questions[start : start + batch_size]
+        partial = _extract_single_batch(
+            technology_name,
+            all_sources,
+            batch,
+            questions_file,
+            summary,
+            model,
+        )
+        technology = partial.technology or technology
+        merged_answers.extend(partial.answers)
+
+    return TechnologyEvaluation(
+        technology=technology,
+        questions_file=questions_file,
+        executive_summary="",
+        answers=merged_answers,
+        retrieval_summary=summary,
+    )
 
 
 def _format_sources_for_llm(sources: list[dict]) -> str:
