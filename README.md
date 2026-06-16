@@ -86,11 +86,12 @@ VITE_API_BASE_URL=http://localhost:8000
 
 ## Retrieval workflow
 
-1. **Local paper database** — scans all ~159k records with multiple targeted queries; keeps top 30 papers
-2. **Tavily internet search** — multiple targeted queries for technical, economic, and deployment evidence; keeps top 20 pages
-3. **OpenAI extraction** — answers all 26 questions in two focused batches using both source streams
+1. **Local paper database** — scans all records with multiple targeted queries; keeps top 30 papers
+2. **Tavily internet search** — multiple targeted queries for technical, economic, company, and project evidence; keeps top 20 pages
+3. **OpenAI structured extraction** — returns standardized technology intelligence JSON (overview, metrics, companies, projects, evidence)
+4. **Optional legacy Q&A** — enable `include_legacy_qa` to also generate the previous 26-question output
 
-Both retrieval streams run on every research job. Sources are labeled `scientific_paper` or `internet` in the report.
+Primary API output shape: `intelligence` object with standardized categories and numerical fields.
 
 ## API contract (research pipeline)
 

@@ -1,4 +1,5 @@
 import type { TechnologyEvaluation } from "@/types/technologyEvaluation";
+import type { ResearchFilters, IntelligenceOptions } from "./technology-intelligence";
 import type { ResearchReport } from "./research-types";
 
 // In dev, leave VITE_API_BASE_URL empty to use the Vite /api proxy (same origin).
@@ -113,13 +114,24 @@ export async function fetchQuestionSets(): Promise<QuestionSetsResponse> {
   return request<QuestionSetsResponse>("/api/question-sets");
 }
 
+export async function fetchIntelligenceOptions(): Promise<IntelligenceOptions> {
+  return request<IntelligenceOptions>("/api/intelligence-options");
+}
+
 export async function startResearch(
   subject: string,
   questionSet: string,
+  filters: ResearchFilters,
+  includeLegacyQa = false,
 ): Promise<ResearchJobQueued> {
   return request<ResearchJobQueued>("/api/research", {
     method: "POST",
-    body: JSON.stringify({ subject, question_set: questionSet }),
+    body: JSON.stringify({
+      subject,
+      question_set: questionSet,
+      filters,
+      include_legacy_qa: includeLegacyQa,
+    }),
   });
 }
 
@@ -171,9 +183,9 @@ export function pollResearchJob(
 }
 
 export const PROGRESS_LABELS: Record<string, string> = {
-  preparing_question_set: "Preparing Question Set",
+  preparing_question_set: "Preparing Extraction",
   searching_local_papers: "Searching Local Paper Database",
   searching_internet: "Searching Internet Sources",
-  analyzing_evidence: "Analyzing Evidence",
+  analyzing_evidence: "Extracting Structured Intelligence",
   generating_report: "Generating Report",
 };

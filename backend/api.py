@@ -5,8 +5,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from evaluations_routes import router as evaluations_router
+from intelligence_constants import INTELLIGENCE_OPTIONS
 from jobs import create_research_job, get_research_job
 from questions import DEFAULT_QUESTION_SET, list_question_sets_info
+from schemas.technology_intelligence import ResearchFilters
 
 app = FastAPI(title="Concrete Decarbonization Research API", version="1.0.0")
 app.include_router(evaluations_router)
@@ -29,6 +31,8 @@ app.add_middleware(
 class ResearchRequest(BaseModel):
     subject: str = Field(..., min_length=1)
     question_set: str = DEFAULT_QUESTION_SET
+    filters: ResearchFilters = Field(default_factory=ResearchFilters)
+    include_legacy_qa: bool = False
 
 
 @app.get("/api/health")
@@ -45,12 +49,22 @@ def question_sets() -> dict:
     }
 
 
+@app.get("/api/intelligence-options")
+def intelligence_options() -> dict:
+    return INTELLIGENCE_OPTIONS
+
+
 @app.post("/api/research", status_code=202)
 def start_research(request: ResearchRequest) -> dict:
     subject = request.subject.strip()
     if not subject:
         raise HTTPException(status_code=400, detail="Subject cannot be empty.")
-    return create_research_job(subject, request.question_set)
+    return create_research_job(
+        subject,
+        request.question_set,
+        filters=request.filters.model_dump(),
+        include_legacy_qa=request.include_legacy_qa,
+    )
 
 
 @app.get("/api/research/{job_id}")

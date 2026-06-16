@@ -20,7 +20,14 @@ def _set_job(job_id: str, **updates: Any) -> None:
             _jobs[job_id].update(updates)
 
 
-def _run_job(job_id: str, subject: str, question_set: str) -> None:
+def _run_job(
+    job_id: str,
+    subject: str,
+    question_set: str,
+    *,
+    filters: dict[str, Any] | None = None,
+    include_legacy_qa: bool = False,
+) -> None:
     def on_progress(step: str, message: str) -> None:
         _set_job(
             job_id,
@@ -32,6 +39,8 @@ def _run_job(job_id: str, subject: str, question_set: str) -> None:
         result = run_research_pipeline(
             subject,
             question_set,
+            filters=filters,
+            include_legacy_qa=include_legacy_qa,
             progress_callback=on_progress,
         )
         _set_job(job_id, status="completed", result=result, progress=None)
@@ -51,7 +60,13 @@ def _run_job(job_id: str, subject: str, question_set: str) -> None:
         )
 
 
-def create_research_job(subject: str, question_set: str) -> dict[str, Any]:
+def create_research_job(
+    subject: str,
+    question_set: str,
+    *,
+    filters: dict[str, Any] | None = None,
+    include_legacy_qa: bool = False,
+) -> dict[str, Any]:
     """Queue a research job and return its initial status payload."""
     job_id = f"run_{uuid.uuid4().hex[:12]}"
     payload = {
@@ -66,7 +81,14 @@ def create_research_job(subject: str, question_set: str) -> dict[str, Any]:
     with _lock:
         _jobs[job_id] = payload.copy()
 
-    _executor.submit(_run_job, job_id, subject.strip(), question_set)
+    _executor.submit(
+        _run_job,
+        job_id,
+        subject.strip(),
+        question_set,
+        filters=filters,
+        include_legacy_qa=include_legacy_qa,
+    )
     return {
         "job_id": job_id,
         "status": "queued",

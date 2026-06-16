@@ -1,5 +1,10 @@
-export type Confidence = "High" | "Medium" | "Low";
-export type SourceType = "internet" | "scientific_paper";
+import type { Answer, Confidence, SourceType } from "./research-types";
+import type {
+  ResearchFilters,
+  TechnologyIntelligence,
+} from "./technology-intelligence";
+
+export type { Confidence, SourceType };
 
 export interface SourceMetadata {
   authors: string[];
@@ -17,24 +22,18 @@ export interface Source {
   metadata: SourceMetadata;
 }
 
-export interface Answer {
-  question: string;
-  answer: string;
-  confidence: Confidence;
-  source_type_used: SourceType[];
-  sources: Source[];
-}
-
 export interface ResearchReport {
   technology: string;
   questions_file: string;
   executive_summary: string;
-  answers: Answer[];
+  intelligence: TechnologyIntelligence;
+  legacy_answers: Answer[];
   retrieval_summary: {
     internet_sources_found: number;
     scientific_paper_sources_found: number;
     local_paper_database_enabled: boolean;
   };
+  search_filters?: ResearchFilters;
 }
 
 export const EXAMPLE_TOPICS = [
@@ -45,4 +44,5 @@ export const EXAMPLE_TOPICS = [
   "Direct Separation",
   "Fortera",
   "Sublime Systems",
+  "CycloneCC",
 ];

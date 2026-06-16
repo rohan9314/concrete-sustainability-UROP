@@ -26,10 +26,16 @@ INTERNET_MAX_PER_QUERY = 6
 LLM_QUESTION_BATCH_SIZE = 13
 
 
-def build_search_queries(technology_name: str) -> list[str]:
+def build_search_queries(
+    technology_name: str,
+    *,
+    company_name: str = "",
+    ccs_subcategory: str = "",
+    project_stage: str = "Not Reported",
+) -> list[str]:
     """Return focused queries to surface technical, economic, and deployment evidence."""
     tech = technology_name.strip()
-    return [
+    queries = [
         f"{tech} cement concrete carbon capture",
         f"{tech} CO2 capture cement plant technology",
         f"{tech} CAPEX OPEX cost cement carbon capture",
@@ -37,12 +43,42 @@ def build_search_queries(technology_name: str) -> list[str]:
         f"{tech} lifecycle emissions greenhouse gas cement",
         f"{tech} commercial deployment pilot demonstration cement",
         f"{tech} adoption barriers infrastructure cement plant",
+        f"{tech} company developer cement carbon capture pilot project",
+        f"{tech} demonstration plant cement CO2 capture capacity",
     ]
+
+    if ccs_subcategory and ccs_subcategory != "Not Reported":
+        queries.append(f"{tech} {ccs_subcategory} cement carbon capture")
+
+    if company_name.strip():
+        company = company_name.strip()
+        queries.extend(
+            [
+                f"{tech} {company} cement carbon capture pilot",
+                f"{company} cement decarbonization project demonstration",
+            ]
+        )
+
+    if project_stage in {"Pilot", "Demonstration"}:
+        queries.append(f"{tech} {project_stage.lower()} project cement CO2 capture")
+
+    # Deduplicate while preserving order
+    seen: set[str] = set()
+    unique: list[str] = []
+    for query in queries:
+        key = query.lower()
+        if key not in seen:
+            seen.add(key)
+            unique.append(query)
+    return unique
 
 
 def retrieve_all_sources(
     technology_name: str,
     *,
+    company_name: str = "",
+    ccs_subcategory: str = "",
+    project_stage: str = "Not Reported",
     progress_callback: ProgressCallback | None = None,
 ) -> tuple[list[dict], list[dict]]:
     """
@@ -50,7 +86,12 @@ def retrieve_all_sources(
 
     Results are deduplicated and capped before being sent to the LLM.
     """
-    queries = build_search_queries(technology_name)
+    queries = build_search_queries(
+        technology_name,
+        company_name=company_name,
+        ccs_subcategory=ccs_subcategory,
+        project_stage=project_stage,
+    )
 
     if progress_callback:
         progress_callback(
