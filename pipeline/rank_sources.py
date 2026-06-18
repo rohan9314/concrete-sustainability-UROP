@@ -17,6 +17,7 @@ QUANT_PATTERNS = [
     r"co2e",
     r"\bcost\b",
     r"\benergy\b",
+    r"\breduction\b",
     r"\bpilot\b",
     r"\bdemonstration\b",
     r"\bcommercial\b",
@@ -31,9 +32,15 @@ COMPANY_PATTERNS = [
     r"\bplant\b",
 ]
 
+_LABEL_BONUS: dict[str, float] = {
+    "High": 8.0,
+    "Medium": 3.0,
+    "Low": -4.0,
+}
 
-def _recency_bonus(year: str) -> float:
-    if not year or year == "Not Reported":
+
+def _recency_bonus(year: str, year_source: str) -> float:
+    if not year or year == "Not Reported" or year_source == "not_reported":
         return 0.0
     try:
         year_int = int(re.sub(r"[^\d]", "", year)[:4])
@@ -43,7 +50,10 @@ def _recency_bonus(year: str) -> float:
     if year_int < 1990 or year_int > current + 1:
         return 0.0
     age = max(0, current - year_int)
-    return max(0.0, 10.0 - age * 0.4)
+    base = max(0.0, 10.0 - age * 0.4)
+    if year_source == "doi_inferred":
+        return base * 0.5
+    return base
 
 
 def _pattern_bonus(text: str, patterns: list[str], weight: float = 1.0) -> float:
@@ -81,12 +91,15 @@ def rank_sources(
             for part in [paper.title, paper.abstract, paper.snippet, paper.text]
             if part
         )
+
         rank_score = paper.relevance_score
+        rank_score += _LABEL_BONUS.get(paper.relevance_label, 0.0)
         rank_score += _title_match_bonus(paper.title, query_terms)
         rank_score += _abstract_match_bonus(paper.abstract, query_terms)
-        rank_score += _recency_bonus(paper.year)
+        rank_score += _recency_bonus(paper.year, paper.year_source)
         rank_score += _pattern_bonus(text, QUANT_PATTERNS, weight=1.5)
         rank_score += _pattern_bonus(text, COMPANY_PATTERNS, weight=0.8)
+        rank_score -= min(4.0, len(paper.negative_topic_matches) * 1.2)
 
         ranked.append(
             RankedPaper(

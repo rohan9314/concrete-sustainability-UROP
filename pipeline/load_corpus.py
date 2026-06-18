@@ -13,13 +13,13 @@ if str(REPO_ROOT / "backend") not in sys.path:
 from paper_records import (  # noqa: E402
     _paragraph_text,
     _record_dedupe_key,
-    _record_year,
     _stringify_value,
     load_paper_records,
 )
 
 from pipeline.config import get_pickle_path
 from pipeline.schema import FilteredPaper, NOT_REPORTED
+from pipeline.year_utils import normalize_publication_year
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +54,7 @@ def normalize_paper(record: dict, index: int) -> FilteredPaper:
     if not url and doi:
         url = f"https://doi.org/{doi}"
 
-    year = _record_year(record) or NOT_REPORTED
+    year, year_source = normalize_publication_year(record)
 
     return FilteredPaper(
         paper_id=paper_id,
@@ -64,6 +64,7 @@ def normalize_paper(record: dict, index: int) -> FilteredPaper:
         abstract=abstract,
         authors=_normalize_authors(record),
         year=year,
+        year_source=year_source,
         doi=doi,
         url=url,
         snippet=snippet,

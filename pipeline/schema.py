@@ -144,10 +144,17 @@ class FilteredPaper(BaseModel):
     paper_id: str
     relevance_score: float
     matched_keywords: list[str] = Field(default_factory=list)
+    matched_tier1_keywords: list[str] = Field(default_factory=list)
+    matched_tier2_keywords: list[str] = Field(default_factory=list)
+    matched_tier3_keywords: list[str] = Field(default_factory=list)
+    negative_topic_matches: list[str] = Field(default_factory=list)
+    relevance_label: str = "Low"
+    relevance_reason: str = ""
     title: str = ""
     abstract: str = ""
     authors: list[str] = Field(default_factory=list)
     year: str = NOT_REPORTED
+    year_source: str = "not_reported"
     doi: str = ""
     url: str = ""
     snippet: str = ""

@@ -8,7 +8,6 @@ import pickle
 import re
 import threading
 import time
-from datetime import datetime, timezone
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -215,14 +214,23 @@ def _record_year(record: dict) -> str:
     for key in ("year", "publication_year", "pub_year"):
         value = record.get(key)
         if value:
-            return str(value)
+            text = str(value).strip()
+            match = re.search(r"(19|20)\d{2}", text)
+            if match:
+                return match.group(0)
 
-    modified = record.get("modified")
-    if modified is not None:
-        try:
-            return str(datetime.fromtimestamp(int(modified), tz=timezone.utc).year)
-        except (TypeError, ValueError, OSError):
-            pass
+    doi = str(record.get("doi") or "").strip()
+    if doi:
+        for pattern in (
+            r"\.(19|20)\d{2}\.",
+            r"/(19|20)\d{2}/",
+            r"\.(19|20)\d{2}/",
+        ):
+            match = re.search(pattern, doi.lower())
+            if match:
+                year_match = re.search(r"(19|20)\d{2}", match.group(0))
+                if year_match:
+                    return year_match.group(0)
     return ""
 
 
