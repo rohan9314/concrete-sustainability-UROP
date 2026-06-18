@@ -13,7 +13,7 @@ import re
 import sys
 from pathlib import Path
 
-from pipeline import ResearchPipelineError, run_research_pipeline
+from research_pipeline import ResearchPipelineError, run_research_pipeline
 from questions import DEFAULT_QUESTION_SET, list_question_sets
 
 OUTPUT_DIR = Path(__file__).parent / "outputs"

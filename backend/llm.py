@@ -9,6 +9,7 @@ from openai import OpenAI
 from pydantic import ValidationError
 
 from prompts import SYSTEM_PROMPT, build_extraction_prompt
+from concurrency import get_extraction_concurrency, run_parallel_ordered
 from retrieval import LLM_QUESTION_BATCH_SIZE
 from schema import QuestionAnswer, RetrievalSummary, TechnologyEvaluation
 from serializer import _normalize_answer, normalize_result
@@ -234,12 +235,13 @@ def extract_technology_info(
             model,
         )
 
-    merged_answers: list[QuestionAnswer] = []
-    technology = technology_name
+    batches: list[list[str]] = [
+        questions[start : start + batch_size]
+        for start in range(0, len(questions), batch_size)
+    ]
 
-    for start in range(0, len(questions), batch_size):
-        batch = questions[start : start + batch_size]
-        partial = _extract_single_batch(
+    def batch_worker(batch: list[str]) -> TechnologyEvaluation:
+        return _extract_single_batch(
             technology_name,
             all_sources,
             batch,
@@ -247,6 +249,23 @@ def extract_technology_info(
             summary,
             model,
         )
+
+    parallel = run_parallel_ordered(
+        batches,
+        batch_worker,
+        concurrency=get_extraction_concurrency(),
+        label="legacy_qa_batch",
+    )
+
+    merged_answers: list[QuestionAnswer] = []
+    technology = technology_name
+
+    for item in parallel:
+        if not item.success or item.value is None:
+            raise InvalidJSONError(
+                item.error or "Legacy Q&A batch extraction failed."
+            )
+        partial = item.value
         technology = partial.technology or technology
         merged_answers.extend(partial.answers)
 

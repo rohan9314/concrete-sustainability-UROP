@@ -89,11 +89,16 @@ export interface PilotDemonstrationProjectIntel {
 }
 
 export interface EvidenceSourceIntel {
+  source_id?: string;
   title: string;
   url_or_reference: string;
   source_type: string;
   relevant_fields: string[];
   snippet: string;
+  authors?: string[];
+  year?: string;
+  doi?: string;
+  journal_or_venue?: string;
 }
 
 export interface TechnologyIntelligence {

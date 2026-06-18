@@ -1,5 +1,7 @@
 """FastAPI wrapper for the research agent."""
 
+import logging
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -9,6 +11,16 @@ from intelligence_constants import INTELLIGENCE_OPTIONS
 from jobs import create_research_job, get_research_job
 from questions import DEFAULT_QUESTION_SET, list_question_sets_info
 from schemas.technology_intelligence import ResearchFilters
+from technology_database import (
+    get_technology_record,
+    list_technology_record_payloads,
+    search_technology_records,
+)
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
 
 app = FastAPI(title="Concrete Decarbonization Research API", version="1.0.0")
 app.include_router(evaluations_router)
@@ -52,6 +64,42 @@ def question_sets() -> dict:
 @app.get("/api/intelligence-options")
 def intelligence_options() -> dict:
     return INTELLIGENCE_OPTIONS
+
+
+@app.get("/api/technology-database")
+def technology_database() -> dict:
+    records = list_technology_record_payloads()
+    sources = []
+    for record in records:
+        sources.extend(record.get("sources") or [])
+    return {
+        "version": "1.0",
+        "record_count": len(records),
+        "records": records,
+        "sources": sources,
+    }
+
+
+@app.get("/api/technology-database/search")
+def technology_database_search(q: str = "", limit: int = 20) -> dict:
+    records = search_technology_records(q, limit=limit)
+    sources = []
+    for record in records:
+        sources.extend(record.get("sources") or [])
+    return {
+        "query": q,
+        "count": len(records),
+        "records": records,
+        "sources": sources,
+    }
+
+
+@app.get("/api/technology-database/{record_id}")
+def technology_database_record(record_id: str) -> dict:
+    record = get_technology_record(record_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Technology record not found.")
+    return record
 
 
 @app.post("/api/research", status_code=202)

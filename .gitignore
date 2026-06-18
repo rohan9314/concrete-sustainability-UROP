@@ -8,6 +8,19 @@ backend/.env
 
 # Confidential local datasets
 *.pkl
+filtered_records_rohan.pkl
+data/*.pkl
+
+# Pipeline outputs and cache
+outputs/
+cache/
+backend/outputs/
+backend/cache/
+technology_database.json
+technology_database.jsonl
+data/technology_database.json
+data/technology_database.jsonl
+!data/sample_technology_database.json
 
 # Python
 __pycache__/

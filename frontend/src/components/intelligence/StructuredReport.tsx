@@ -7,6 +7,7 @@ import type {
 } from "@/lib/technology-intelligence";
 import { displayList, displayValue } from "@/lib/technology-intelligence";
 import { LegacyQASection } from "./LegacyQASection";
+import { SourcesBibliography } from "./SourcesBibliography";
 import { ChevronDown, ExternalLink } from "lucide-react";
 
 const TABS = [
@@ -99,6 +100,17 @@ export function StructuredReport({ report }: { report: ResearchReport }) {
       {tab === "Legacy Q&A" && hasLegacy && (
         <LegacyQASection answers={report.legacy_answers} />
       )}
+
+      {(report.sources_used?.length || report.sources?.length) ? (
+        <div className="mt-12 border-t border-border pt-10">
+          <SourcesBibliography
+            sources={report.sources}
+            sourcesUsed={report.sources_used}
+            sourcesConsidered={report.sources_considered}
+            citationWarnings={report.citation_warnings}
+          />
+        </div>
+      ) : null}
     </main>
   );
 }
@@ -394,16 +406,27 @@ function EvidenceSection({
           <ul className="space-y-3">
             {sources.map((s, i) => (
               <li
-                key={`${s.title}-${i}`}
+                key={`${s.source_id || s.title}-${i}`}
                 className="rounded-md border border-border bg-card p-4"
               >
+                {s.source_id && (
+                  <p className="mb-1 font-mono text-[11px] text-muted-foreground">
+                    [{s.source_id}]
+                  </p>
+                )}
                 <p className="font-medium">{displayValue(s.title)}</p>
                 <p className="mt-1 text-[12px] text-muted-foreground">
                   {displayValue(s.source_type)}
+                  {s.year && s.year !== "Not Reported" ? ` · ${s.year}` : ""}
                   {s.relevant_fields?.length
                     ? ` · Fields: ${s.relevant_fields.join(", ")}`
                     : ""}
                 </p>
+                {s.authors && s.authors.length > 0 && (
+                  <p className="mt-1 text-[12px] text-muted-foreground">
+                    Authors: {s.authors.join(", ")}
+                  </p>
+                )}
                 {s.url_or_reference && (
                   <a
                     href={s.url_or_reference}
@@ -411,7 +434,7 @@ function EvidenceSection({
                     rel="noopener noreferrer"
                     className="mt-2 inline-flex items-center gap-1 text-[13px] text-primary hover:underline"
                   >
-                    {s.url_or_reference}
+                    {s.doi || s.url_or_reference}
                     <ExternalLink className="h-3 w-3" />
                   </a>
                 )}

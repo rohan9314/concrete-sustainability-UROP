@@ -7,7 +7,7 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
-from pipeline import ResearchPipelineError, run_research_pipeline
+from research_pipeline import ResearchPipelineError, run_research_pipeline
 
 _executor = ThreadPoolExecutor(max_workers=2)
 _lock = threading.Lock()

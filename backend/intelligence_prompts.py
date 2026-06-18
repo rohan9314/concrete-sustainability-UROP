@@ -32,8 +32,9 @@ STRICT RULES:
 12. For confidence fields, only use: {json.dumps(list(CONFIDENCE_LEVELS))}
 13. Identify companies developing or deploying the technology.
 14. Search specifically for pilot and demonstration projects connected to the technology and companies.
-15. Include citations in source/url fields and evidence_sources with relevant_fields listing extracted schema paths.
-16. When internet and scientific sources disagree, note the conflict in warnings and lower confidence.
+15. When citing evidence, use only the provided SOURCE_ID values exactly (for example paper_001, web_002) in metric source fields, project source fields, and evidence_sources.source_id.
+16. Do not invent source IDs. Do not cite sources that were not provided. If a claim is not supported by a provided source, mark it as Not Reported.
+17. When internet and scientific sources disagree, note the conflict in warnings and lower confidence.
 
 For Carbon Capture technologies, explicitly:
 1. Identify the CCS technology type and classify ccs_subcategory.
@@ -145,6 +146,7 @@ Return a single JSON object with this exact top-level shape:
   ],
   "evidence_sources": [
     {{
+      "source_id": "",
       "title": "",
       "url_or_reference": "",
       "source_type": "",

@@ -218,11 +218,16 @@ def _normalize_evidence(raw: dict | None) -> EvidenceSourceIntel | None:
     if (not title or title == "Not Reported") and not url:
         return None
     return EvidenceSourceIntel(
+        source_id=_clean_text(raw.get("source_id"), default=""),
         title=title or "Not Reported",
         url_or_reference=url,
         source_type=_clean_text(raw.get("source_type"), default="Not Reported"),
         relevant_fields=_coerce_str_list(raw.get("relevant_fields")),
         snippet=_clean_text(raw.get("snippet"), default=""),
+        authors=_coerce_str_list(raw.get("authors")),
+        year=_clean_text(raw.get("year"), default="Not Reported"),
+        doi=_clean_text(raw.get("doi"), default=""),
+        journal_or_venue=_clean_text(raw.get("journal_or_venue"), default=""),
     )
 
 

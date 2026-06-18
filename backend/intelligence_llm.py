@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import logging
+import time
 
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -19,8 +21,11 @@ from llm import (
     _parse_json_response,
 )
 from schemas.technology_intelligence import ResearchFilters, TechnologyIntelligence
+from source_registry import SourceBibliography, SourceRegistry, build_registry_from_sources
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 
 def extract_technology_intelligence(
@@ -29,7 +34,8 @@ def extract_technology_intelligence(
     *,
     filters: ResearchFilters | dict | None = None,
     model: str = DEFAULT_MODEL,
-) -> TechnologyIntelligence:
+    source_registry: SourceRegistry | None = None,
+) -> tuple[TechnologyIntelligence, SourceBibliography]:
     """Extract standardized technology intelligence JSON from retrieved sources."""
     api_key = validate_api_key()
     client = OpenAI(api_key=api_key)
@@ -47,9 +53,8 @@ def extract_technology_intelligence(
         1 for source in all_sources if source.get("source_type") == "scientific_paper"
     )
 
-    from search import format_sources_for_llm
-
-    source_content = format_sources_for_llm(all_sources)
+    registry = source_registry or build_registry_from_sources(all_sources)
+    source_content = registry.format_for_llm()
     user_prompt = build_intelligence_prompt(
         technology_name,
         source_content,
@@ -62,6 +67,7 @@ def extract_technology_intelligence(
     )
 
     try:
+        started = time.perf_counter()
         response = client.chat.completions.create(
             model=model,
             messages=[
@@ -71,6 +77,11 @@ def extract_technology_intelligence(
             temperature=0.1,
             response_format={"type": "json_object"},
         )
+        logger.info(
+            "intelligence_llm: OpenAI call completed in %.2fs (sources=%s)",
+            time.perf_counter() - started,
+            len(all_sources),
+        )
     except Exception as exc:
         raise InvalidJSONError(f"OpenAI API call failed: {exc}") from exc
 
@@ -79,6 +90,12 @@ def extract_technology_intelligence(
         raise InvalidJSONError("OpenAI returned an empty response.")
 
     data = _parse_json_response(raw_content)
+    bibliography = registry.attach_bibliography(data)
+    issues = registry.validate(data)
+    if issues:
+        logger.warning("Citation validation issues: %s", issues)
+        bibliography.citation_warnings = sorted(set(bibliography.citation_warnings + issues))
+
     intelligence = normalize_intelligence(
         data,
         technology_name=technology_name,
@@ -86,11 +103,13 @@ def extract_technology_intelligence(
     )
 
     try:
-        return TechnologyIntelligence.model_validate(intelligence.model_dump())
+        validated = TechnologyIntelligence.model_validate(intelligence.model_dump())
     except ValidationError as exc:
         raise SchemaValidationError(
             f"Intelligence output failed schema validation: {exc}"
         ) from exc
+
+    return validated, bibliography
 
 
 def intelligence_to_summary_context(intelligence: TechnologyIntelligence) -> str:

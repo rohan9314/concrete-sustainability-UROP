@@ -1,63 +1,62 @@
 # Concrete Decarbonization Research Agent
 
-Full-stack research tool for evaluating cement and concrete decarbonization technologies. The backend retrieves scientific papers from a **local paper database** configured via `PAPER_RECORDS_PATH`, optionally supplements with internet sources (Tavily), and uses OpenAI to answer configurable research questions.
+Full-stack research tool for evaluating cement and concrete decarbonization technologies.
 
-## Project structure
+## Architecture
+
+The project is split into two paths:
+
+1. **Offline pipeline** (`pipeline/`) — filters, ranks, extracts, and merges structured technology records from the local paper corpus. Designed for batch processing and parallel batch workers over large corpora.
+2. **Web frontend** — reads prepared records from a static technology database (`data/sample_technology_database.json` for development). Live analysis remains available as an experimental option.
+
+The website should **not** process the full corpus live. Offline batch jobs build `data/technology_database.json`, and the frontend displays coverage, confidence, and missing-field indicators from those prepared records.
 
 ```
 /
-├── frontend/          # React + TanStack Start UI
-├── backend/           # Python research agent + FastAPI wrapper
-│   ├── api.py         # HTTP API
-│   ├── paper_records.py  # Local pickle paper retrieval
-│   ├── pipeline.py    # Research workflow
-│   ├── questions/     # Configurable question sets (JSON)
-│   └── outputs/       # Saved research JSON (gitignored)
-├── README.md
-└── .gitignore
+├── pipeline/              # Offline stages (load → filter → rank → extract → merge → export)
+│   ├── load_corpus.py
+│   ├── filter_relevance.py
+│   ├── rank_sources.py
+│   ├── extract_structured_fields.py
+│   ├── merge_records.py
+│   ├── export_database.py
+│   ├── run_batch.py       # Corpus shard processor for batch workloads
+│   └── run_pipeline.py    # Small local end-to-end test
+├── data/
+│   └── sample_technology_database.json   # Committed sample for frontend dev
+├── frontend/              # React + TanStack Start UI
+├── backend/               # FastAPI wrapper + live analysis (optional)
+└── docs/
+    └── batch_worker_example.sh         # Example parallel worker pattern (documentation only)
 ```
 
 ## Prerequisites
 
 - Python 3.11+
 - Node.js 20+ (or Bun)
-- API keys: OpenAI, Tavily (optional supplement)
-- Local paper database file (configured via `PAPER_RECORDS_PATH`, gitignored)
+- API keys: OpenAI (pipeline extraction + optional live analysis), Tavily (optional live analysis only)
+- Local paper database file (gitignored pickle configured via `PICKLE_PATH`)
 
-## Local paper database
-
-Set the absolute path to your confidential paper database in `backend/.env`:
-
-```
-PAPER_RECORDS_PATH=/absolute/path/to/your/paper_database.pkl
-```
-
-Pickle files (`*.pkl`) are **gitignored** and must never be committed.
-
-## Backend setup (required)
-
-The frontend cannot load question sets or run research without the backend.
+## Backend setup
 
 ```bash
 cd backend
 pip install -r requirements.txt
 cp .env.example .env
-# Edit .env with your API keys and PAPER_RECORDS_PATH
+# Edit .env: TECH_DATABASE_PATH, PICKLE_PATH, API keys as needed
 uvicorn api:app --reload --port 8000
 ```
 
-Keep this running in a separate terminal while using the app.
+### API endpoints
 
-### CLI (optional)
-
-```bash
-cd backend
-python main.py "calcium looping" --questions carbon_capture
-```
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/technology-database` | List prepared technology records |
+| `GET /api/technology-database/search?q=` | Search prepared records |
+| `GET /api/technology-database/{record_id}` | Fetch one record |
+| `POST /api/research` | Optional experimental live analysis |
 
 ## Frontend setup
-
-From the **repo root** (recommended):
 
 ```bash
 npm install
@@ -65,65 +64,51 @@ cp frontend/.env.example frontend/.env
 npm run dev
 ```
 
-Or from `frontend/` directly:
+The default search UI reads prepared database records. Expand **Experimental: Run live analysis** for the slower live extraction path.
+
+## Offline pipeline
+
+### Small local test (no LLM)
 
 ```bash
-cd frontend
-npm install
-cp .env.example .env
-npm run dev
+export PICKLE_PATH=/path/to/your/corpus.pkl
+python pipeline/run_pipeline.py --start 0 --end 500 --query "cement decarbonization"
 ```
 
-> **Important:** The app that calls the 26-question research API lives in `frontend/`.
-> Running `npm run dev` from the repo root now forwards to `frontend/`.
-> You must also have the backend running on port 8000.
+### Small local test with extraction (uses OpenAI)
 
-### API base URL
-
-```
-VITE_API_BASE_URL=http://localhost:8000
+```bash
+python pipeline/run_pipeline.py --start 0 --end 500 --extract --query "LC3 cement"
 ```
 
-## Retrieval workflow
+### Corpus shard (batch processing)
 
-1. **Local paper database** — scans all records with multiple targeted queries; keeps top 30 papers
-2. **Tavily internet search** — multiple targeted queries for technical, economic, company, and project evidence; keeps top 20 pages
-3. **OpenAI structured extraction** — returns standardized technology intelligence JSON (overview, metrics, companies, projects, evidence)
-4. **Optional legacy Q&A** — enable `include_legacy_qa` to also generate the previous 26-question output
-
-Primary API output shape: `intelligence` object with standardized categories and numerical fields.
-
-## API contract (research pipeline)
-
-### POST /api/research
-
-```json
-{
-  "subject": "calcium looping",
-  "question_set": "carbon_capture"
-}
+```bash
+python pipeline/run_batch.py --start 0 --end 10000 --out outputs/batch_0_10000.jsonl
 ```
 
-### Completed result shape
+With extraction:
 
-```json
-{
-  "technology": "Calcium Looping",
-  "questions_file": "carbon_capture",
-  "executive_summary": "...",
-  "answers": [],
-  "retrieval_summary": {
-    "internet_sources_found": 0,
-    "scientific_paper_sources_found": 8,
-    "local_paper_database_enabled": true
-  }
-}
+```bash
+python pipeline/run_batch.py --start 0 --end 100 --extract --technology "carbon capture" --out outputs/batch_0_100.jsonl
 ```
 
-## Mock evaluation API
+See `docs/batch_worker_example.sh` for an example parallel worker pattern. Large-scale processing should remain batch/offline — not a dependency of the live website.
 
-For frontend development without OpenAI/Tavily:
+### Environment variables
 
-- `POST /api/evaluate` — returns mock `TechnologyEvaluation` objects
-- `GET /api/evaluations` — list saved evaluations
-- `GET /api/evaluations/{id}` — fetch one evaluation
+| Variable | Default | Purpose |
+|---|---|---|
+| `PICKLE_PATH` | — | Local paper corpus pickle |
+| `TOP_N_SOURCES` | `50` | Ranked papers per shard/query |
+| `EXTRACTION_CONCURRENCY` | `4` | Bounded parallel workers |
+| `OUTPUT_DIR` | `./outputs` | Shard output directory |
+| `TECH_DATABASE_PATH` | `./data/sample_technology_database.json` | Database served to frontend |
+
+## Gitignored assets
+
+Never commit: `.env`, `*.pkl`, `outputs/`, `cache/`, `technology_database.json`, or full generated databases. The committed `data/sample_technology_database.json` is for frontend development only.
+
+## Prepared record schema
+
+Each technology record includes standardized fields such as `technology_category`, `deployment_stage`, `performance_metrics`, quantitative fields, projects, sources, `missing_fields`, `confidence_by_field`, and `coverage_score`. See `pipeline/schema.py` for the canonical definition.

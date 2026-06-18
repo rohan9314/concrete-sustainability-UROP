@@ -3,12 +3,17 @@ import { useEffect, useState } from "react";
 import {
   fetchIntelligenceOptions,
   fetchQuestionSets,
+  fetchTechnologyDatabase,
+  searchTechnologyDatabase,
   startResearch,
   type QuestionSet,
 } from "@/lib/api";
 import { EXAMPLE_TOPICS } from "@/lib/research-types";
+import { setTechnologyRecord } from "@/lib/research-store";
 import type { IntelligenceOptions, ResearchFilters } from "@/lib/technology-intelligence";
-import { Search, ArrowRight, BookOpen } from "lucide-react";
+import type { TechnologyRecord } from "@/lib/technology-record";
+import { coverageLabel } from "@/lib/technology-record";
+import { Search, ArrowRight, BookOpen, FlaskConical } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -17,7 +22,7 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "Structured technology intelligence database for cement and concrete decarbonization.",
+          "Browse prepared structured technology records from the offline cement decarbonization database.",
       },
     ],
   }),
@@ -30,6 +35,21 @@ const DEFAULT_FILTERS: ResearchFilters = {
   company_name: "",
   project_stage: "Not Reported",
 };
+
+const UNKNOWN_OPTION = "Not Reported";
+
+const FILTER_LABELS: Record<string, string> = {
+  "Not Reported": "Unknown — auto-detect from sources",
+};
+
+function sortUnknownFirst(options: string[]): string[] {
+  const rest = options.filter((o) => o !== UNKNOWN_OPTION);
+  return options.includes(UNKNOWN_OPTION) ? [UNKNOWN_OPTION, ...rest] : options;
+}
+
+function optionLabel(value: string): string {
+  return FILTER_LABELS[value] ?? value;
+}
 
 function questionSetForCategory(category: string): string {
   switch (category) {
@@ -48,6 +68,11 @@ function questionSetForCategory(category: string): string {
 function SearchPage() {
   const navigate = useNavigate();
   const [topic, setTopic] = useState("");
+  const [databaseRecords, setDatabaseRecords] = useState<TechnologyRecord[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+
+  const [showLiveAnalysis, setShowLiveAnalysis] = useState(false);
   const [filters, setFilters] = useState<ResearchFilters>(DEFAULT_FILTERS);
   const [includeLegacyQa, setIncludeLegacyQa] = useState(false);
   const [options, setOptions] = useState<IntelligenceOptions | null>(null);
@@ -58,10 +83,11 @@ function SearchPage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([fetchIntelligenceOptions(), fetchQuestionSets()])
-      .then(([intelOptions, qSets]) => {
+    Promise.all([fetchIntelligenceOptions(), fetchQuestionSets(), fetchTechnologyDatabase()])
+      .then(([intelOptions, qSets, database]) => {
         setOptions(intelOptions);
         setQuestionSets(qSets.question_sets);
+        setDatabaseRecords(database.records);
       })
       .catch((error: Error) => {
         const msg = error.message;
@@ -74,14 +100,35 @@ function SearchPage() {
       .finally(() => setLoadingMeta(false));
   }, []);
 
-  const showCcsSubcategory = filters.main_category === "Carbon Capture";
+  async function searchDatabase(query?: string) {
+    const subject = (query ?? topic).trim();
+    setSearching(true);
+    setSearchError(null);
+    try {
+      if (!subject) {
+        const database = await fetchTechnologyDatabase();
+        setDatabaseRecords(database.records);
+      } else {
+        const result = await searchTechnologyDatabase(subject);
+        setDatabaseRecords(result.records);
+      }
+    } catch (error) {
+      setSearchError(error instanceof Error ? error.message : "Database search failed.");
+    } finally {
+      setSearching(false);
+    }
+  }
 
-  async function runResearch(t?: string) {
+  function openRecord(record: TechnologyRecord) {
+    setTechnologyRecord(record);
+    navigate({ to: "/report" });
+  }
+
+  async function runLiveResearch(t?: string) {
     const subject = (t ?? topic).trim();
     if (!subject || submitting) return;
 
     const questionSet = questionSetForCategory(filters.main_category);
-
     setSubmitting(true);
     setSubmitError(null);
 
@@ -97,6 +144,8 @@ function SearchPage() {
     }
   }
 
+  const showCcsSubcategory = filters.main_category === "Carbon Capture";
+
   return (
     <div className="min-h-screen">
       <header className="border-b border-border">
@@ -108,7 +157,7 @@ function SearchPage() {
             </span>
           </div>
           <span className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
-            v0.4 · Structured extraction
+            v0.5 · Prepared database
           </span>
         </div>
       </header>
@@ -116,24 +165,24 @@ function SearchPage() {
       <main className="mx-auto max-w-3xl px-8 pb-24 pt-20">
         <div className="mb-14">
           <p className="mb-3 font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
-            Technology Intelligence Search
+            Technology Database Search
           </p>
           <h1 className="mb-5 font-serif text-[44px] font-semibold leading-[1.05] tracking-tight">
-            Structured Technology
+            Prepared Technology
             <br />
-            Database
+            Records
           </h1>
           <p className="max-w-2xl text-[17px] leading-relaxed text-muted-foreground">
-            Extract standardized technology profiles — categories, metrics, companies,
-            and pilot/demonstration projects — from local scientific papers and internet
-            sources.
+            Browse structured technology profiles from the offline pipeline — categories,
+            metrics, projects, sources, coverage, and confidence indicators. The website
+            reads prepared records instead of processing the full corpus live.
           </p>
         </div>
 
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            runResearch();
+            searchDatabase();
           }}
           className="space-y-6"
         >
@@ -153,108 +202,40 @@ function SearchPage() {
                 id="topic"
                 value={topic}
                 onChange={(e) => setTopic(e.target.value)}
-                placeholder="e.g. CycloneCC, Calcium Looping, CarbonCure…"
+                placeholder="e.g. CycloneCC, LC3, CarbonCure…"
                 className="h-14 w-full rounded-md border border-border bg-card pl-11 pr-4 text-[15px] outline-none transition-colors placeholder:text-muted-foreground/70 focus:border-foreground/40 focus:ring-2 focus:ring-ring/20"
               />
             </div>
           </div>
 
-          <div className="grid gap-6 sm:grid-cols-2">
-            <FilterSelect
-              id="main_category"
-              label="Main Category"
-              value={filters.main_category}
-              disabled={loadingMeta || !!metaError}
-              options={options?.main_categories ?? ["Not Reported"]}
-              onChange={(value) =>
-                setFilters((f) => ({
-                  ...f,
-                  main_category: value,
-                  ccs_subcategory:
-                    value === "Carbon Capture" ? f.ccs_subcategory : "Not Reported",
-                }))
-              }
-            />
-
-            {showCcsSubcategory && (
-              <FilterSelect
-                id="ccs_subcategory"
-                label="CCS Subcategory"
-                value={filters.ccs_subcategory}
-                disabled={loadingMeta || !!metaError}
-                options={options?.ccs_subcategories ?? ["Not Reported"]}
-                onChange={(value) =>
-                  setFilters((f) => ({ ...f, ccs_subcategory: value }))
-                }
-              />
-            )}
-
-            <div className={showCcsSubcategory ? "" : "sm:col-span-1"}>
-              <label
-                htmlFor="company_name"
-                className="mb-2 block font-mono text-[11px] uppercase tracking-widest text-muted-foreground"
-              >
-                Company Name (optional)
-              </label>
-              <input
-                id="company_name"
-                value={filters.company_name}
-                onChange={(e) =>
-                  setFilters((f) => ({ ...f, company_name: e.target.value }))
-                }
-                placeholder="e.g. HeidelbergCement, Carbon Clean"
-                className="h-12 w-full rounded-md border border-border bg-card px-4 text-[15px] outline-none focus:border-foreground/40 focus:ring-2 focus:ring-ring/20"
-              />
-            </div>
-
-            <FilterSelect
-              id="project_stage"
-              label="Project Stage Filter"
-              value={filters.project_stage}
-              disabled={loadingMeta || !!metaError}
-              options={options?.project_stages ?? ["Not Reported"]}
-              onChange={(value) =>
-                setFilters((f) => ({ ...f, project_stage: value }))
-              }
-            />
-          </div>
-
-          <label className="flex items-center gap-2 text-[13px] text-muted-foreground">
-            <input
-              type="checkbox"
-              checked={includeLegacyQa}
-              onChange={(e) => setIncludeLegacyQa(e.target.checked)}
-              className="rounded border-border"
-            />
-            Also generate legacy 26-question Q&amp;A output (slower)
-          </label>
-
           {metaError ? (
             <p className="text-[13px] text-confidence-low">{metaError}</p>
           ) : (
             <p className="text-[13px] text-muted-foreground">
-              Question framework:{" "}
-              {questionSets.find((s) => s.id === questionSetForCategory(filters.main_category))
-                ?.label ?? "Decarbonization Technology Evaluation Framework"}
+              Showing prepared records from the offline pipeline database.
             </p>
           )}
 
-          {submitError && (
-            <p className="text-[13px] text-confidence-low">{submitError}</p>
-          )}
+          {searchError && <p className="text-[13px] text-confidence-low">{searchError}</p>}
 
           <button
             type="submit"
-            disabled={!topic.trim() || loadingMeta || !!metaError || submitting}
+            disabled={loadingMeta || !!metaError || searching}
             className="group inline-flex h-12 w-full items-center justify-center gap-2 rounded-md bg-primary px-6 text-[14px] font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {submitting ? "Starting..." : "Extract Structured Intelligence"}
+            {searching ? "Searching database..." : "Search Prepared Database"}
             <ArrowRight
               className="h-4 w-4 transition-transform group-hover:translate-x-0.5"
               strokeWidth={2}
             />
           </button>
         </form>
+
+        <DatabaseResults
+          records={databaseRecords}
+          loading={loadingMeta || searching}
+          onSelect={openRecord}
+        />
 
         <div className="mt-14 border-t border-border pt-8">
           <p className="mb-4 font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
@@ -267,9 +248,9 @@ function SearchPage() {
                 type="button"
                 onClick={() => {
                   setTopic(ex);
-                  runResearch(ex);
+                  searchDatabase(ex);
                 }}
-                disabled={loadingMeta || submitting}
+                disabled={loadingMeta || searching}
                 className="rounded-full border border-border bg-card px-3.5 py-1.5 text-[13px] text-foreground/80 transition-colors hover:border-foreground/40 hover:bg-accent disabled:opacity-40"
               >
                 {ex}
@@ -277,7 +258,178 @@ function SearchPage() {
             ))}
           </div>
         </div>
+
+        <section className="mt-16 rounded-md border border-border bg-card p-6">
+          <button
+            type="button"
+            onClick={() => setShowLiveAnalysis((value) => !value)}
+            className="flex w-full items-center justify-between gap-3 text-left"
+          >
+            <div className="flex items-center gap-2">
+              <FlaskConical className="h-4 w-4 text-muted-foreground" strokeWidth={1.5} />
+              <div>
+                <p className="text-[14px] font-medium">Experimental: Run live analysis</p>
+                <p className="text-[13px] text-muted-foreground">
+                  Optional live extraction from papers and internet sources (slower).
+                </p>
+              </div>
+            </div>
+            <span className="text-[13px] text-muted-foreground">
+              {showLiveAnalysis ? "Hide" : "Show"}
+            </span>
+          </button>
+
+          {showLiveAnalysis && (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                runLiveResearch();
+              }}
+              className="mt-6 space-y-6 border-t border-border pt-6"
+            >
+              <div className="grid gap-6 sm:grid-cols-2">
+                <FilterSelect
+                  id="main_category"
+                  label="Main Category (optional)"
+                  value={filters.main_category}
+                  disabled={loadingMeta || !!metaError}
+                  options={sortUnknownFirst(options?.main_categories ?? [UNKNOWN_OPTION])}
+                  onChange={(value) =>
+                    setFilters((f) => ({
+                      ...f,
+                      main_category: value,
+                      ccs_subcategory:
+                        value === "Carbon Capture" ? f.ccs_subcategory : "Not Reported",
+                    }))
+                  }
+                />
+
+                {showCcsSubcategory && (
+                  <FilterSelect
+                    id="ccs_subcategory"
+                    label="CCS Subcategory"
+                    value={filters.ccs_subcategory}
+                    disabled={loadingMeta || !!metaError}
+                    options={sortUnknownFirst(options?.ccs_subcategories ?? [UNKNOWN_OPTION])}
+                    onChange={(value) =>
+                      setFilters((f) => ({ ...f, ccs_subcategory: value }))
+                    }
+                  />
+                )}
+
+                <div className={showCcsSubcategory ? "" : "sm:col-span-1"}>
+                  <label
+                    htmlFor="company_name"
+                    className="mb-2 block font-mono text-[11px] uppercase tracking-widest text-muted-foreground"
+                  >
+                    Company Name (optional)
+                  </label>
+                  <input
+                    id="company_name"
+                    value={filters.company_name}
+                    onChange={(e) =>
+                      setFilters((f) => ({ ...f, company_name: e.target.value }))
+                    }
+                    placeholder="e.g. HeidelbergCement, Carbon Clean"
+                    className="h-12 w-full rounded-md border border-border bg-card px-4 text-[15px] outline-none focus:border-foreground/40 focus:ring-2 focus:ring-ring/20"
+                  />
+                </div>
+
+                <FilterSelect
+                  id="project_stage"
+                  label="Project Stage Filter (optional)"
+                  value={filters.project_stage}
+                  disabled={loadingMeta || !!metaError}
+                  options={sortUnknownFirst(options?.project_stages ?? [UNKNOWN_OPTION])}
+                  onChange={(value) =>
+                    setFilters((f) => ({ ...f, project_stage: value }))
+                  }
+                />
+              </div>
+
+              <label className="flex items-center gap-2 text-[13px] text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={includeLegacyQa}
+                  onChange={(e) => setIncludeLegacyQa(e.target.checked)}
+                  className="rounded border-border"
+                />
+                Also generate legacy 26-question Q&amp;A output (slower)
+              </label>
+
+              <p className="text-[13px] text-muted-foreground">
+                Question framework:{" "}
+                {questionSets.find((s) => s.id === questionSetForCategory(filters.main_category))
+                  ?.label ?? "Decarbonization Technology Evaluation Framework"}
+              </p>
+
+              {submitError && (
+                <p className="text-[13px] text-confidence-low">{submitError}</p>
+              )}
+
+              <button
+                type="submit"
+                disabled={!topic.trim() || loadingMeta || !!metaError || submitting}
+                className="inline-flex h-11 w-full items-center justify-center rounded-md border border-border bg-background px-4 text-[14px] font-medium transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {submitting ? "Starting live analysis..." : "Run Live Analysis"}
+              </button>
+            </form>
+          )}
+        </section>
       </main>
+    </div>
+  );
+}
+
+function DatabaseResults({
+  records,
+  loading,
+  onSelect,
+}: {
+  records: TechnologyRecord[];
+  loading: boolean;
+  onSelect: (record: TechnologyRecord) => void;
+}) {
+  if (loading) {
+    return <p className="mt-8 text-[14px] text-muted-foreground">Loading database...</p>;
+  }
+
+  if (records.length === 0) {
+    return (
+      <p className="mt-8 text-[14px] text-muted-foreground">
+        No matching prepared records. Try another search term or run the offline pipeline to
+        populate the database.
+      </p>
+    );
+  }
+
+  return (
+    <div className="mt-8 space-y-3">
+      {records.map((record) => (
+        <button
+          key={record.record_id}
+          type="button"
+          onClick={() => onSelect(record)}
+          className="w-full rounded-md border border-border bg-card p-4 text-left transition-colors hover:border-foreground/30 hover:bg-accent/40"
+        >
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="font-serif text-[20px] font-semibold">{record.technology_name}</p>
+              <p className="mt-1 text-[13px] text-muted-foreground">
+                {record.technology_category} · {record.company_or_organization} ·{" "}
+                {record.deployment_stage}
+              </p>
+            </div>
+            <span className="rounded-full border border-border px-2.5 py-1 text-[12px] text-muted-foreground">
+              {coverageLabel(record)}
+            </span>
+          </div>
+          <p className="mt-3 line-clamp-2 text-[14px] leading-relaxed text-foreground/80">
+            {record.technical_description}
+          </p>
+        </button>
+      ))}
     </div>
   );
 }
@@ -314,7 +466,7 @@ function FilterSelect({
       >
         {options.map((opt) => (
           <option key={opt} value={opt}>
-            {opt}
+            {optionLabel(opt)}
           </option>
         ))}
       </select>

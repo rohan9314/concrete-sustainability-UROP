@@ -1,0 +1,195 @@
+{
+  "version": "1.0",
+  "record_count": 3,
+  "records": [
+    {
+      "record_id": "sample-cyclonecc",
+      "technology_name": "CycloneCC",
+      "technology_category": "Carbon Capture",
+      "company_or_organization": "Carbon Clean",
+      "deployment_stage": "Demonstration",
+      "technical_description": "Rotary packed bed carbon capture technology adapted for cement kiln flue gas with reduced footprint and modular deployment.",
+      "replaces_or_improves": "Conventional amine-based post-combustion capture systems requiring large absorber columns.",
+      "performance_metrics": ["CO2 reduction", "Cost reduction", "Energy reduction"],
+      "reported_ghg_reduction_percent": "95% [paper_001]",
+      "absolute_emissions_intensity_kg_co2e": "Not Reported",
+      "energy_reduction_percent": "Not Reported",
+      "cost_reduction_percent": "30% lower CAPEX vs conventional amine (vendor claim) [web_001]",
+      "pilot_projects": [
+        {
+          "name": "Cement kiln pilot integration",
+          "description": "Pilot testing of CycloneCC with cement plant flue gas.",
+          "source_ids": ["paper_001"]
+        }
+      ],
+      "demonstration_projects": [
+        {
+          "name": "HeidelbergCement demonstration",
+          "description": "Demonstration-scale deployment at a European cement plant.",
+          "source_ids": ["paper_001", "web_001"]
+        }
+      ],
+      "relevant_sources": [
+        {
+          "source_id": "paper_001",
+          "source_type": "paper",
+          "title": "Rotary packed bed carbon capture for cement applications",
+          "authors": ["Smith, J.", "Lee, A."],
+          "year": "2023",
+          "doi": "10.1000/example.cyclonecc",
+          "journal_or_venue": "Cement and Concrete Research",
+          "url": "https://doi.org/10.1000/example.cyclonecc",
+          "snippet": "Demonstration of modular carbon capture for cement kiln flue gas."
+        },
+        {
+          "source_id": "paper_002",
+          "source_type": "paper",
+          "title": "Comparative assessment of post-combustion capture in cement plants",
+          "authors": ["Garcia, M."],
+          "year": "2022",
+          "doi": "10.1000/example.capture-review",
+          "journal_or_venue": "Journal of Cleaner Production",
+          "url": "https://doi.org/10.1000/example.capture-review",
+          "snippet": "Review of capture technologies for cement decarbonization."
+        },
+        {
+          "source_id": "web_001",
+          "source_type": "web",
+          "title": "Carbon Clean CycloneCC deployment update",
+          "website_or_publisher": "carbonclean.com",
+          "url": "https://example.org/cyclonecc",
+          "retrieval_date": "2026-06-01",
+          "snippet": "Vendor reports lower CAPEX and modular deployment for cement applications."
+        }
+      ],
+      "missing_fields": ["absolute_emissions_intensity_kg_co2e", "energy_reduction_percent"],
+      "confidence_by_field": {
+        "technology_name": "High",
+        "technology_category": "High",
+        "company_or_organization": "Medium",
+        "deployment_stage": "Medium",
+        "technical_description": "High",
+        "reported_ghg_reduction_percent": "Medium",
+        "cost_reduction_percent": "Low"
+      },
+      "extraction_notes": ["Sample record for frontend development only."],
+      "coverage_score": 0.8462,
+      "source_provenance": {
+        "technology_name": ["paper_001"],
+        "deployment_stage": ["paper_001", "web_001"],
+        "reported_ghg_reduction_percent": ["paper_001"],
+        "cost_reduction_percent": ["web_001"]
+      }
+    },
+    {
+      "record_id": "sample-lc3",
+      "technology_name": "LC3 Cement",
+      "technology_category": "Alternative Cementitious Material",
+      "company_or_organization": "EPFL / IIT Delhi consortium",
+      "deployment_stage": "Commercial",
+      "technical_description": "Limestone calcined clay cement (LC3) replaces a portion of clinker with calcined clay and limestone, reducing process CO2 emissions.",
+      "replaces_or_improves": "Ordinary Portland cement clinker in binder systems.",
+      "performance_metrics": ["CO2 reduction", "Resource efficiency", "Strength improvement"],
+      "reported_ghg_reduction_percent": "30-40% [paper_003]",
+      "absolute_emissions_intensity_kg_co2e": "Not Reported",
+      "energy_reduction_percent": "Not Reported",
+      "cost_reduction_percent": "Not Reported",
+      "pilot_projects": [],
+      "demonstration_projects": [
+        {
+          "name": "LC3 India demonstration plants",
+          "description": "Multiple demonstration projects producing LC3 cement in India.",
+          "source_ids": ["paper_003"]
+        }
+      ],
+      "relevant_sources": [
+        {
+          "source_id": "paper_003",
+          "source_type": "paper",
+          "title": "Limestone calcined clay cement: state of the art and deployment",
+          "authors": ["Scrivener, K.", "Ariño, I."],
+          "year": "2022",
+          "doi": "10.1000/example.lc3",
+          "journal_or_venue": "Resources, Conservation and Recycling",
+          "url": "https://doi.org/10.1000/example.lc3",
+          "snippet": "LC3 can reduce CO2 emissions by up to 40% compared to OPC."
+        }
+      ],
+      "missing_fields": [
+        "absolute_emissions_intensity_kg_co2e",
+        "energy_reduction_percent",
+        "cost_reduction_percent",
+        "pilot_projects"
+      ],
+      "confidence_by_field": {
+        "technology_name": "High",
+        "technology_category": "High",
+        "technical_description": "High",
+        "reported_ghg_reduction_percent": "High",
+        "deployment_stage": "Medium"
+      },
+      "extraction_notes": ["Sample record for frontend development only."],
+      "coverage_score": 0.6923,
+      "source_provenance": {
+        "reported_ghg_reduction_percent": ["paper_003"]
+      }
+    },
+    {
+      "record_id": "sample-carboncure",
+      "technology_name": "CarbonCure",
+      "technology_category": "Concrete Design",
+      "company_or_organization": "CarbonCure Technologies",
+      "deployment_stage": "Commercial",
+      "technical_description": "Injects captured CO2 into fresh concrete where it mineralizes, improving strength and permanently storing CO2.",
+      "replaces_or_improves": "Conventional ready-mix concrete production without CO2 utilization.",
+      "performance_metrics": ["CO2 reduction", "Strength improvement"],
+      "reported_ghg_reduction_percent": "Not Reported",
+      "absolute_emissions_intensity_kg_co2e": "Not Reported",
+      "energy_reduction_percent": "Not Reported",
+      "cost_reduction_percent": "Not Reported",
+      "pilot_projects": [],
+      "demonstration_projects": [],
+      "relevant_sources": [
+        {
+          "source_id": "paper_004",
+          "source_type": "paper",
+          "title": "CO2 mineralization in ready-mix concrete production",
+          "authors": ["Rahman, S."],
+          "year": "2021",
+          "journal_or_venue": "Construction and Building Materials",
+          "url": "https://example.org/carboncure-paper",
+          "snippet": "Commercial deployment of CO2 injection across North American ready-mix plants."
+        },
+        {
+          "source_id": "web_002",
+          "source_type": "web",
+          "title": "CarbonCure commercial deployment overview",
+          "website_or_publisher": "carboncure.com",
+          "url": "https://example.org/carboncure",
+          "retrieval_date": "2026-06-01",
+          "snippet": "Commercial deployment of CO2 injection across North American ready-mix plants."
+        }
+      ],
+      "missing_fields": [
+        "reported_ghg_reduction_percent",
+        "absolute_emissions_intensity_kg_co2e",
+        "energy_reduction_percent",
+        "cost_reduction_percent",
+        "pilot_projects",
+        "demonstration_projects"
+      ],
+      "confidence_by_field": {
+        "technology_name": "High",
+        "technology_category": "Medium",
+        "company_or_organization": "High",
+        "deployment_stage": "High",
+        "technical_description": "High"
+      },
+      "extraction_notes": ["Sample record for frontend development only."],
+      "coverage_score": 0.5385,
+      "source_provenance": {
+        "deployment_stage": ["web_002"]
+      }
+    }
+  ]
+}

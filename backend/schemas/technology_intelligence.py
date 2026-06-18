@@ -54,11 +54,16 @@ class PilotDemonstrationProjectIntel(BaseModel):
 
 
 class EvidenceSourceIntel(BaseModel):
+    source_id: str = ""
     title: str = "Not Reported"
     url_or_reference: str = ""
     source_type: str = "Not Reported"
     relevant_fields: list[str] = Field(default_factory=list)
     snippet: str = ""
+    authors: list[str] = Field(default_factory=list)
+    year: str = "Not Reported"
+    doi: str = ""
+    journal_or_venue: str = ""
 
 
 class TechnologyIntelligence(BaseModel):

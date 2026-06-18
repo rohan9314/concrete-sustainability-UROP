@@ -1,11 +1,29 @@
 import type { ResearchReport } from "./research-types";
+import type { TechnologyRecord } from "./technology-record";
 
-let currentReport: ResearchReport | null = null;
+export type ReportViewMode = "database" | "live";
 
-export function setReport(report: ResearchReport) {
-  currentReport = report;
+export interface StoredReport {
+  mode: ReportViewMode;
+  technologyRecord?: TechnologyRecord;
+  liveReport?: ResearchReport;
 }
 
-export function getReport(): ResearchReport | null {
+let currentReport: StoredReport | null = null;
+
+export function setTechnologyRecord(record: TechnologyRecord) {
+  currentReport = { mode: "database", technologyRecord: record };
+}
+
+export function setReport(report: ResearchReport) {
+  currentReport = { mode: "live", liveReport: report };
+}
+
+export function getStoredReport(): StoredReport | null {
   return currentReport;
+}
+
+/** @deprecated Use getStoredReport() */
+export function getReport(): ResearchReport | null {
+  return currentReport?.liveReport ?? null;
 }

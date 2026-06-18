@@ -1,4 +1,5 @@
 import type { TechnologyEvaluation } from "@/types/technologyEvaluation";
+import type { TechnologyDatabaseResponse, TechnologyRecord } from "./technology-record";
 import type { ResearchFilters, IntelligenceOptions } from "./technology-intelligence";
 import type { ResearchReport } from "./research-types";
 
@@ -116,6 +117,22 @@ export async function fetchQuestionSets(): Promise<QuestionSetsResponse> {
 
 export async function fetchIntelligenceOptions(): Promise<IntelligenceOptions> {
   return request<IntelligenceOptions>("/api/intelligence-options");
+}
+
+export async function fetchTechnologyDatabase(): Promise<TechnologyDatabaseResponse> {
+  return request<TechnologyDatabaseResponse>("/api/technology-database");
+}
+
+export async function searchTechnologyDatabase(
+  query: string,
+  limit = 20,
+): Promise<{ query: string; count: number; records: TechnologyRecord[] }> {
+  const params = new URLSearchParams({ q: query, limit: String(limit) });
+  return request(`/api/technology-database/search?${params.toString()}`);
+}
+
+export async function fetchTechnologyRecord(recordId: string): Promise<TechnologyRecord> {
+  return request<TechnologyRecord>(`/api/technology-database/${recordId}`);
 }
 
 export async function startResearch(

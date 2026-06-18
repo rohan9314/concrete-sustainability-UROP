@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import pickle
 import re
 import threading
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -58,6 +60,8 @@ _cache_lock = threading.Lock()
 _cached_records: list[dict] | None = None
 _cached_path: str | None = None
 
+logger = logging.getLogger(__name__)
+
 
 class PaperDatabaseConfigError(Exception):
     """Raised when PAPER_RECORDS_PATH is not configured."""
@@ -73,11 +77,15 @@ class PaperDatabaseLoadError(Exception):
 
 def get_paper_records_path() -> str:
     """Return the configured paper database path from the environment."""
-    value = os.getenv(ENV_PAPER_RECORDS_PATH, "").strip()
+    value = (
+        os.getenv(ENV_PAPER_RECORDS_PATH, "").strip()
+        or os.getenv("PICKLE_PATH", "").strip()
+    )
     if not value:
         raise PaperDatabaseConfigError(
-            f"{ENV_PAPER_RECORDS_PATH} is not set. Add it to backend/.env with the "
-            "absolute path to your local confidential paper database file."
+            f"{ENV_PAPER_RECORDS_PATH} (or PICKLE_PATH) is not set. Add it to "
+            "backend/.env with the absolute path to your local confidential paper "
+            "database file."
         )
     return value
 
@@ -115,8 +123,15 @@ def load_paper_records(path: str | None = None, *, force_reload: bool = False) -
             )
 
         try:
+            started = time.perf_counter()
             with resolved.open("rb") as handle:
                 raw = pickle.load(handle)
+            logger.info(
+                "pickle_load: loaded %s records from %s (%.2fs)",
+                len(raw) if isinstance(raw, (list, dict)) else "?",
+                resolved,
+                time.perf_counter() - started,
+            )
         except Exception as exc:
             raise PaperDatabaseLoadError(
                 "Failed to load local paper database. Verify that the file at "
