@@ -13,6 +13,8 @@ data/*.pkl
 
 # Pipeline outputs and cache
 outputs/
+outputs/*.jsonl
+outputs/*.csv
 cache/
 backend/outputs/
 backend/cache/
@@ -33,7 +35,8 @@ venv/
 backend/outputs/*.json
 
 # Logs
-logs
+logs/
+logs/**
 *.log
 npm-debug.log*
 yarn-debug.log*

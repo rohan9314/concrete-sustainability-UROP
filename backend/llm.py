@@ -5,9 +5,9 @@ import os
 import re
 
 from dotenv import load_dotenv
-from openai import OpenAI
 from pydantic import ValidationError
 
+from openai_flex import call_openai_flex
 from prompts import SYSTEM_PROMPT, build_extraction_prompt
 from concurrency import get_extraction_concurrency, run_parallel_ordered
 from retrieval import LLM_QUESTION_BATCH_SIZE
@@ -152,9 +152,6 @@ def _extract_single_batch(
     model: str,
 ) -> TechnologyEvaluation:
     """Run one OpenAI extraction call for a batch of questions."""
-    api_key = validate_api_key()
-    client = OpenAI(api_key=api_key)
-
     internet_count = sum(
         1 for source in all_sources if source.get("source_type") == "internet"
     )
@@ -172,7 +169,7 @@ def _extract_single_batch(
     )
 
     try:
-        response = client.chat.completions.create(
+        raw_content = call_openai_flex(
             model=model,
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
@@ -184,7 +181,6 @@ def _extract_single_batch(
     except Exception as exc:
         raise InvalidJSONError(f"OpenAI API call failed: {exc}") from exc
 
-    raw_content = response.choices[0].message.content or ""
     if not raw_content.strip():
         raise InvalidJSONError("OpenAI returned an empty response.")
 

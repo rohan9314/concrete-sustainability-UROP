@@ -1,4 +1,4 @@
-"""Stage 4: LLM structured extraction on ranked sources only."""
+"""Stage 4: LLM structured extraction on screened, ranked sources (Stage 2)."""
 
 from __future__ import annotations
 
@@ -13,9 +13,9 @@ if str(REPO_ROOT / "backend") not in sys.path:
     sys.path.insert(0, str(REPO_ROOT / "backend"))
 
 from dotenv import load_dotenv
-from openai import OpenAI
 
-from llm import DEFAULT_MODEL, _parse_json_response, validate_api_key  # noqa: E402
+from openai_flex import call_openai_flex  # noqa: E402
+from llm import DEFAULT_MODEL, _parse_json_response  # noqa: E402
 from pipeline.config import get_extraction_concurrency
 from pipeline.schema import (
     DEPLOYMENT_STAGES,
@@ -69,16 +69,19 @@ class ExtractionResult:
 
 def _paper_to_prompt(paper: RankedPaper) -> str:
     authors = ", ".join(paper.authors[:8]) if paper.authors else "Not Reported"
-    return (
-        f"Paper ID: {paper.paper_id}\n"
-        f"Title: {paper.title}\n"
-        f"Authors: {authors}\n"
-        f"Year: {paper.year}\n"
-        f"DOI: {paper.doi or 'Not Reported'}\n"
-        f"URL: {paper.url or 'Not Reported'}\n\n"
-        f"Abstract:\n{paper.abstract or paper.snippet or 'Not Reported'}\n\n"
-        f"Text:\n{paper.text or paper.snippet or 'Not Reported'}"
-    )
+    parts = [
+        f"Paper ID: {paper.paper_id}",
+        f"Title: {paper.title}",
+        f"Authors: {authors}",
+        f"Year: {paper.year}",
+        f"DOI: {paper.doi or 'Not Reported'}",
+        f"URL: {paper.url or 'Not Reported'}",
+        "",
+        f"Abstract:\n{paper.abstract or 'Not Reported'}",
+    ]
+    if paper.text and paper.text.strip() and paper.text.strip() != paper.abstract.strip():
+        parts.extend(["", f"Full text (post-screening only):\n{paper.text}"])
+    return "\n".join(parts)
 
 
 def extract_technology_record(
@@ -97,8 +100,7 @@ def extract_technology_record(
     )
 
     try:
-        client = OpenAI(api_key=validate_api_key())
-        response = client.chat.completions.create(
+        raw = call_openai_flex(
             model=opts.model,
             messages=[
                 {"role": "system", "content": EXTRACTION_SYSTEM_PROMPT},
@@ -107,7 +109,6 @@ def extract_technology_record(
             temperature=0.1,
             response_format={"type": "json_object"},
         )
-        raw = response.choices[0].message.content or ""
         data = _parse_json_response(raw)
 
         if not data.get("technology_name") or data.get("technology_name") == NOT_REPORTED:

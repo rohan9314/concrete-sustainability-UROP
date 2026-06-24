@@ -133,6 +133,9 @@ class RelevanceResult:
     relevance_reason: str = ""
     has_quant_sustainability: bool = False
     strong_signal: bool = False
+    query_score: float = 0.0
+    query_matches: list[str] = field(default_factory=list)
+    technology_synonym_matches: list[str] = field(default_factory=list)
 
 
 def _match_keywords(text: str, keywords: list[tuple[str, float]]) -> tuple[list[str], float]:
@@ -149,22 +152,24 @@ def _has_quant_sustainability(text: str) -> bool:
     return any(re.search(pattern, text, flags=re.IGNORECASE) for pattern in QUANT_SUSTAINABILITY_PATTERNS)
 
 
-def score_relevance(text: str, *, query_terms: list[str] | None = None) -> RelevanceResult:
+def score_relevance(
+    text: str,
+    *,
+    query_context: object | None = None,
+) -> RelevanceResult:
     """Score one paper's text against tiered decarbonization relevance signals."""
+    from pipeline.query_scoring import QueryContext, has_active_query, score_query
+
     normalized = text.lower()
-    query_terms = [term.strip().lower() for term in (query_terms or []) if term.strip()]
 
     tier1, score1 = _match_keywords(normalized, TIER1_KEYWORDS)
     tier2, score2 = _match_keywords(normalized, TIER2_KEYWORDS)
     tier3, score3 = _match_keywords(normalized, TIER3_KEYWORDS)
     negatives, penalty = _match_keywords(normalized, NEGATIVE_TOPICS)
 
-    query_bonus = 0.0
-    query_matches: list[str] = []
-    for term in query_terms:
-        if term in normalized:
-            query_bonus += 3.0
-            query_matches.append(term)
+    context = query_context if isinstance(query_context, QueryContext) else None
+    query_result = score_query(normalized, context)
+    query_score = query_result.query_score
 
     has_quant = _has_quant_sustainability(normalized)
     strong_signal = bool(tier1) or len(tier2) >= 2 or (bool(tier2) and has_quant)
@@ -172,11 +177,18 @@ def score_relevance(text: str, *, query_terms: list[str] | None = None) -> Relev
     weak_signal = not tier1 and len(tier2) < 2 and not (tier2 and has_quant)
     negative_penalty = penalty if weak_signal else penalty * 0.35
 
-    relevance_score = max(0.0, score1 + score2 + score3 + query_bonus - negative_penalty)
+    relevance_score = max(0.0, score1 + score2 + score3 + query_score - negative_penalty)
 
-    label, reason = _classify_relevance(tier1, tier2, tier3, negatives, has_quant)
+    label, reason = _classify_relevance(
+        tier1,
+        tier2,
+        tier3,
+        negatives,
+        has_quant,
+        query_result=query_result if has_active_query(context) else None,
+    )
 
-    all_matched = sorted(set(tier1 + tier2 + tier3 + query_matches))
+    all_matched = sorted(set(tier1 + tier2 + tier3 + query_result.query_matches + query_result.technology_synonym_matches))
 
     return RelevanceResult(
         relevance_score=round(relevance_score, 3),
@@ -189,6 +201,9 @@ def score_relevance(text: str, *, query_terms: list[str] | None = None) -> Relev
         relevance_reason=reason,
         has_quant_sustainability=has_quant,
         strong_signal=strong_signal,
+        query_score=query_score,
+        query_matches=query_result.query_matches,
+        technology_synonym_matches=query_result.technology_synonym_matches,
     )
 
 
@@ -198,7 +213,30 @@ def _classify_relevance(
     tier3: list[str],
     negatives: list[str],
     has_quant: bool,
+    *,
+    query_result: object | None = None,
 ) -> tuple[RelevanceLabel, str]:
+    from pipeline.query_scoring import QueryScoreResult
+
+    has_decarb = bool(tier1) or len(tier2) >= 2 or (bool(tier2) and has_quant)
+    query = query_result if isinstance(query_result, QueryScoreResult) else None
+
+    if query and query.strong_query_match and has_decarb:
+        sample = ", ".join((query.technology_synonym_matches or query.query_matches)[:3])
+        return "High", f"Strong query match ({sample}) with decarbonization relevance."
+
+    if query and query.strong_query_match and (tier2 or tier3):
+        sample = ", ".join((query.technology_synonym_matches or query.query_matches)[:2])
+        return "Medium", f"Strong query match ({sample}) with limited decarbonization language."
+
+    if query and query.moderate_query_match and has_decarb:
+        sample = ", ".join((query.technology_synonym_matches or query.query_matches)[:2])
+        return "Medium", f"Query match ({sample}) with decarbonization relevance."
+
+    if query and query.moderate_query_match and (tier2 or tier3):
+        sample = ", ".join((query.technology_synonym_matches or query.query_matches)[:2])
+        return "Medium", f"Query match ({sample}) with cement/concrete technology context."
+
     if tier1:
         sample = ", ".join(tier1[:3])
         return "High", f"Matched decarbonization terms: {sample}."
@@ -240,8 +278,26 @@ def _classify_relevance(
     return "Low", "Weak decarbonization relevance signal."
 
 
-def passes_relevance_filter(result: RelevanceResult, *, min_score: float = 2.5) -> bool:
+def passes_relevance_filter(
+    result: RelevanceResult,
+    *,
+    min_score: float = 2.5,
+    query_active: bool = False,
+) -> bool:
     """Require stronger evidence than generic cement/concrete mentions alone."""
+    has_cement_context = bool(
+        result.matched_tier1_keywords
+        or result.matched_tier2_keywords
+        or result.matched_tier3_keywords
+    )
+
+    if query_active and result.query_score >= 8.0 and has_cement_context:
+        return True
+    if query_active and result.query_score >= 5.0 and (
+        result.matched_tier1_keywords or result.matched_tier2_keywords
+    ):
+        return True
+
     if result.strong_signal:
         return True
     if result.matched_tier1_keywords:
@@ -261,5 +317,9 @@ def passes_relevance_filter(result: RelevanceResult, *, min_score: float = 2.5) 
         and not result.matched_tier1_keywords
         and len(result.matched_tier2_keywords) < 2
     ):
+        return False
+    if query_active and result.query_score >= 4.0 and has_cement_context:
+        return True
+    if query_active and result.query_score < 3.0:
         return False
     return result.relevance_score >= min_score and bool(result.matched_tier2_keywords)

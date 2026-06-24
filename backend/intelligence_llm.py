@@ -7,17 +7,15 @@ import logging
 import time
 
 from dotenv import load_dotenv
-from openai import OpenAI
 from pydantic import ValidationError
 
+from openai_flex import call_openai_flex
 from intelligence_normalize import normalize_intelligence
 from intelligence_prompts import INTELLIGENCE_SYSTEM_PROMPT, build_intelligence_prompt
 from llm import (
     DEFAULT_MODEL,
     InvalidJSONError,
-    MissingAPIKeyError,
     SchemaValidationError,
-    validate_api_key,
     _parse_json_response,
 )
 from schemas.technology_intelligence import ResearchFilters, TechnologyIntelligence
@@ -37,9 +35,6 @@ def extract_technology_intelligence(
     source_registry: SourceRegistry | None = None,
 ) -> tuple[TechnologyIntelligence, SourceBibliography]:
     """Extract standardized technology intelligence JSON from retrieved sources."""
-    api_key = validate_api_key()
-    client = OpenAI(api_key=api_key)
-
     filter_model = (
         filters
         if isinstance(filters, ResearchFilters)
@@ -68,7 +63,7 @@ def extract_technology_intelligence(
 
     try:
         started = time.perf_counter()
-        response = client.chat.completions.create(
+        raw_content = call_openai_flex(
             model=model,
             messages=[
                 {"role": "system", "content": INTELLIGENCE_SYSTEM_PROMPT},
@@ -85,7 +80,6 @@ def extract_technology_intelligence(
     except Exception as exc:
         raise InvalidJSONError(f"OpenAI API call failed: {exc}") from exc
 
-    raw_content = response.choices[0].message.content or ""
     if not raw_content.strip():
         raise InvalidJSONError("OpenAI returned an empty response.")
 

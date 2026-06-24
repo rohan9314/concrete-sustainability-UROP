@@ -12,12 +12,12 @@ import logging
 from dataclasses import dataclass, field
 
 from dotenv import load_dotenv
-from openai import OpenAI
 
+from openai_flex import call_openai_flex
 from extraction_cache import PROMPT_VERSION, read_cached_extraction, write_cached_extraction
 from intelligence_normalize import normalize_intelligence
 from intelligence_prompts import INTELLIGENCE_SYSTEM_PROMPT
-from llm import DEFAULT_MODEL, _parse_json_response, validate_api_key
+from llm import DEFAULT_MODEL, _parse_json_response
 from schemas.technology_intelligence import ResearchFilters, TechnologyIntelligence
 from search import _format_single_source_for_llm
 
@@ -114,8 +114,7 @@ def extract_from_source(
     )
 
     try:
-        client = OpenAI(api_key=validate_api_key())
-        response = client.chat.completions.create(
+        raw = call_openai_flex(
             model=options.model,
             messages=[
                 {"role": "system", "content": SOURCE_EXTRACTION_PROMPT},
@@ -124,7 +123,6 @@ def extract_from_source(
             temperature=0.1,
             response_format={"type": "json_object"},
         )
-        raw = response.choices[0].message.content or ""
         partial = _parse_json_response(raw)
 
         if options.use_cache:
@@ -279,8 +277,7 @@ def consolidate_intelligence_from_partials(
         "Resolve duplicates, keep only supported facts, and preserve lists."
     )
 
-    client = OpenAI(api_key=validate_api_key())
-    response = client.chat.completions.create(
+    raw = call_openai_flex(
         model=model,
         messages=[
             {"role": "system", "content": INTELLIGENCE_SYSTEM_PROMPT},
@@ -289,7 +286,6 @@ def consolidate_intelligence_from_partials(
         temperature=0.1,
         response_format={"type": "json_object"},
     )
-    raw = response.choices[0].message.content or ""
     data = _parse_json_response(raw)
     normalized = normalize_intelligence(
         data,

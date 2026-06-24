@@ -4,8 +4,8 @@ import json
 import os
 
 from dotenv import load_dotenv
-from openai import OpenAI
 
+from openai_flex import call_openai_flex
 from schema import TechnologyEvaluation
 from schemas.technology_intelligence import TechnologyIntelligence
 
@@ -60,7 +60,6 @@ def generate_executive_summary(
     if not OPENAI_API_KEY or OPENAI_API_KEY == "YOUR_OPENAI_TOKEN_HERE":
         return FALLBACK_SUMMARY
 
-    client = OpenAI(api_key=OPENAI_API_KEY)
     user_content = (
         f"Subject: {evaluation.technology}\n"
         f"Question set: {evaluation.questions_file}\n\n"
@@ -68,15 +67,14 @@ def generate_executive_summary(
     )
 
     try:
-        response = client.chat.completions.create(
+        text = call_openai_flex(
             model=model,
             messages=[
                 {"role": "system", "content": SUMMARY_PROMPT},
                 {"role": "user", "content": user_content},
             ],
             temperature=0.2,
-        )
-        text = (response.choices[0].message.content or "").strip()
+        ).strip()
         return text or FALLBACK_SUMMARY
     except Exception:
         return FALLBACK_SUMMARY
@@ -91,7 +89,6 @@ def generate_intelligence_executive_summary(
     if not OPENAI_API_KEY or OPENAI_API_KEY == "YOUR_OPENAI_TOKEN_HERE":
         return FALLBACK_SUMMARY
 
-    client = OpenAI(api_key=OPENAI_API_KEY)
     user_content = (
         f"Subject: {technology_name}\n\n"
         f"Structured intelligence JSON:\n"
@@ -99,15 +96,14 @@ def generate_intelligence_executive_summary(
     )
 
     try:
-        response = client.chat.completions.create(
+        text = call_openai_flex(
             model=model,
             messages=[
                 {"role": "system", "content": INTELLIGENCE_SUMMARY_PROMPT},
                 {"role": "user", "content": user_content},
             ],
             temperature=0.2,
-        )
-        text = (response.choices[0].message.content or "").strip()
+        ).strip()
         return text or FALLBACK_SUMMARY
     except Exception:
         return FALLBACK_SUMMARY

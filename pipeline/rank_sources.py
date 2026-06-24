@@ -7,7 +7,9 @@ import re
 from datetime import datetime
 
 from pipeline.config import get_top_n_sources
+from pipeline.query_scoring import QueryContext, has_active_query
 from pipeline.schema import FilteredPaper, RankedPaper
+from pipeline.screening import screening_text_lower
 
 logger = logging.getLogger(__name__)
 
@@ -64,38 +66,42 @@ def _pattern_bonus(text: str, patterns: list[str], weight: float = 1.0) -> float
     return bonus
 
 
-def _title_match_bonus(title: str, keywords: list[str]) -> float:
+def _phrase_title_bonus(title: str, phrases: list[str]) -> float:
     title_lower = title.lower()
-    return sum(2.0 for keyword in keywords if keyword in title_lower)
+    return sum(2.5 for phrase in phrases if phrase in title_lower)
 
 
-def _abstract_match_bonus(abstract: str, keywords: list[str]) -> float:
+def _phrase_abstract_bonus(abstract: str, phrases: list[str]) -> float:
     abstract_lower = abstract.lower()
-    return sum(1.0 for keyword in keywords if keyword in abstract_lower)
+    return sum(1.5 for phrase in phrases if phrase in abstract_lower)
 
 
 def rank_sources(
     papers: list[FilteredPaper],
     *,
     top_n: int | None = None,
+    query_context: QueryContext | None = None,
     query_terms: list[str] | None = None,
 ) -> list[RankedPaper]:
-    """Rank filtered papers and return the top N."""
+    """Rank filtered papers using title+abstract signals only."""
     top_n = top_n or get_top_n_sources()
-    query_terms = query_terms or []
+    if query_context is None and query_terms:
+        query_context = QueryContext(query=" ".join(query_terms))
+
+    match_phrases = [phrase for phrase, _, _ in (query_context.match_phrases if query_context else [])]
+    query_active = has_active_query(query_context)
     ranked: list[RankedPaper] = []
 
     for paper in papers:
-        text = " ".join(
-            part
-            for part in [paper.title, paper.abstract, paper.snippet, paper.text]
-            if part
-        )
+        # Title + abstract only for ranking bonuses (no full text).
+        text = screening_text_lower(paper)
 
         rank_score = paper.relevance_score
         rank_score += _LABEL_BONUS.get(paper.relevance_label, 0.0)
-        rank_score += _title_match_bonus(paper.title, query_terms)
-        rank_score += _abstract_match_bonus(paper.abstract, query_terms)
+        if query_active:
+            rank_score += paper.query_score * 0.5
+            rank_score += _phrase_title_bonus(paper.title, match_phrases)
+            rank_score += _phrase_abstract_bonus(paper.abstract, match_phrases)
         rank_score += _recency_bonus(paper.year, paper.year_source)
         rank_score += _pattern_bonus(text, QUANT_PATTERNS, weight=1.5)
         rank_score += _pattern_bonus(text, COMPANY_PATTERNS, weight=0.8)

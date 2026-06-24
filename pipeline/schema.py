@@ -150,6 +150,9 @@ class FilteredPaper(BaseModel):
     negative_topic_matches: list[str] = Field(default_factory=list)
     relevance_label: str = "Low"
     relevance_reason: str = ""
+    query_matches: list[str] = Field(default_factory=list)
+    technology_synonym_matches: list[str] = Field(default_factory=list)
+    query_score: float = 0.0
     title: str = ""
     abstract: str = ""
     authors: list[str] = Field(default_factory=list)
@@ -163,6 +166,28 @@ class FilteredPaper(BaseModel):
 
 class RankedPaper(FilteredPaper):
     rank_score: float = 0.0
+
+
+class AbstractScreeningResult(BaseModel):
+    """Stage 1 output: title+abstract CCS relevance screening."""
+
+    paper_id: str
+    index: int
+    title: str = ""
+    abstract: str = ""
+    year: str = NOT_REPORTED
+    doi: str = ""
+    is_relevant: bool = False
+    relevant_subpaths: list[str] = Field(default_factory=list)
+    confidence: float = 0.0
+    reason: str = ""
+
+    @field_validator("relevant_subpaths", mode="before")
+    @classmethod
+    def coerce_subpaths(cls, value: object) -> list[str]:
+        if not isinstance(value, list):
+            return []
+        return [str(item) for item in value]
 
 
 class TechnologyDatabase(BaseModel):

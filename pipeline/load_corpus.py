@@ -1,4 +1,9 @@
-"""Stage 1: load the local paper corpus into normalized paper objects."""
+"""
+Stage 1: load the local paper corpus into normalized paper objects.
+
+Stage 1 screening uses title + abstract only (see pipeline.screening).
+Full paper text is attached later for Stage 2 extraction via attach_full_text().
+"""
 
 from __future__ import annotations
 
@@ -39,15 +44,16 @@ def _normalize_authors(record: dict) -> list[str]:
 
 
 def normalize_paper(record: dict, index: int) -> FilteredPaper:
-    """Convert a raw pickle record into a stable normalized paper object."""
+    """
+    Convert a raw pickle record into a normalized paper for Stage 1 screening.
+
+    Does not attach paragraph/full-text content. Use attach_full_text() before
+    Stage 2 extraction on papers already marked relevant.
+    """
     paper_id = _record_dedupe_key(record) or f"paper:{index}"
     title = str(record.get("title") or "").strip()
     abstract = str(record.get("abstract") or "").strip()
-    paragraph_text = _paragraph_text(record, max_paragraphs=3, max_chars=2000)
-    snippet = abstract[:500] if abstract else paragraph_text[:500]
-    text = abstract
-    if paragraph_text and paragraph_text not in text:
-        text = f"{text}\n\n{paragraph_text}".strip() if text else paragraph_text
+    snippet = abstract[:500] if abstract else ""
 
     doi = str(record.get("doi") or "").strip()
     url = str(record.get("url") or "").strip()
@@ -68,8 +74,30 @@ def normalize_paper(record: dict, index: int) -> FilteredPaper:
         doi=doi,
         url=url,
         snippet=snippet,
-        text=text[:12000],
+        text="",
     )
+
+
+def attach_full_text(paper: FilteredPaper, record: dict) -> FilteredPaper:
+    """Attach paragraph body text for Stage 2 extraction (post-screening only)."""
+    paragraph_text = _paragraph_text(record, max_paragraphs=10, max_chars=12000)
+    text = paper.abstract
+    if paragraph_text and paragraph_text not in text:
+        text = f"{text}\n\n{paragraph_text}".strip() if text else paragraph_text
+    return paper.model_copy(update={"text": text[:12000]})
+
+
+def load_paper_records_slice(
+    *,
+    path: str | Path | None = None,
+    start: int = 0,
+    end: int | None = None,
+) -> tuple[list[dict], int]:
+    """Load a slice of raw pickle records. Returns (records, slice_end)."""
+    pickle_path = Path(path) if path else get_pickle_path()
+    all_records = load_paper_records(str(pickle_path))
+    slice_end = len(all_records) if end is None else end
+    return all_records[start:slice_end], slice_end
 
 
 def load_corpus(
@@ -77,20 +105,24 @@ def load_corpus(
     start: int = 0,
     end: int | None = None,
     path: str | Path | None = None,
+    paper_ids: set[str] | None = None,
+    include_full_text: bool = False,
 ) -> list[FilteredPaper]:
     """
     Load papers from the pickle corpus.
 
-    For corpus shards, pass start/end to process only an index slice without
-    requiring separate pickle files.
+    By default returns title+abstract only for Stage 1 screening/ranking.
+    Set include_full_text=True for Stage 2 extraction on relevant papers.
     """
-    pickle_path = Path(path) if path else get_pickle_path()
-    logger.info("load_corpus: loading from %s slice [%s:%s]", pickle_path, start, end)
-    records = load_paper_records(str(pickle_path))
-    slice_records = records[start:end]
-    papers = [
-        normalize_paper(record, start + offset)
-        for offset, record in enumerate(slice_records)
-    ]
-    logger.info("load_corpus: normalized %s papers", len(papers))
+    records, _ = load_paper_records_slice(path=path, start=start, end=end)
+    papers: list[FilteredPaper] = []
+    for offset, record in enumerate(records):
+        paper = normalize_paper(record, start + offset)
+        if paper_ids is not None and paper.paper_id not in paper_ids:
+            continue
+        if include_full_text:
+            paper = attach_full_text(paper, record)
+        papers.append(paper)
+
+    logger.info("load_corpus: normalized %s papers (include_full_text=%s)", len(papers), include_full_text)
     return papers

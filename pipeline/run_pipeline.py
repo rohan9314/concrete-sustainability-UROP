@@ -14,9 +14,10 @@ if str(REPO_ROOT) not in sys.path:
 
 from pipeline.export_database import export_database
 from pipeline.extract_structured_fields import ExtractionOptions, extract_technology_records_parallel
-from pipeline.filter_relevance import filter_relevance, tokenize_query
+from pipeline.filter_relevance import filter_relevance
 from pipeline.load_corpus import load_corpus
 from pipeline.merge_records import merge_records
+from pipeline.query_scoring import build_query_context
 from pipeline.rank_sources import rank_sources
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
@@ -33,10 +34,10 @@ def main() -> int:
     parser.add_argument("--out", type=str, default="data/technology_database.json")
     args = parser.parse_args()
 
-    query_terms = tokenize_query(args.query)
+    query_context = build_query_context(query=args.query)
     papers = load_corpus(start=args.start, end=args.end)
-    filtered = filter_relevance(papers, query_terms=query_terms)
-    ranked = rank_sources(filtered, query_terms=query_terms)
+    filtered = filter_relevance(papers, query_context=query_context)
+    ranked = rank_sources(filtered, query_context=query_context)
     logger.info("Loaded=%s filtered=%s ranked=%s", len(papers), len(filtered), len(ranked))
 
     records = []
