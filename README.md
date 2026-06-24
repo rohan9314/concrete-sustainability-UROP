@@ -81,6 +81,19 @@ python pipeline/run_pipeline.py --start 0 --end 500 --query "cement decarbonizat
 python pipeline/run_pipeline.py --start 0 --end 500 --extract --query "LC3 cement"
 ```
 
+### CCS abstract screening (cluster-friendly)
+
+Stage 1 screening uses only title + abstract and does **not** require Tavily, tiktoken, FastAPI, or the full backend retrieval stack. On MIT Engaging or other batch clusters, install the lightweight screening requirements:
+
+```bash
+python -m pip install --user -r requirements-screening.txt
+export PICKLE_PATH=/path/to/your/corpus.pkl
+export OPENAI_API_KEY=your_key_here
+python pipeline/run_ccs_abstract_screening.py --start 0 --end 10
+```
+
+For local development with the full extraction pipeline, use `backend/requirements.txt` instead.
+
 ### Corpus shard (batch processing)
 
 ```bash

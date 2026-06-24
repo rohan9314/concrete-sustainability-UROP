@@ -8,18 +8,14 @@ from __future__ import annotations
 
 import json
 import logging
-import sys
 from dataclasses import dataclass
-from pathlib import Path
-
-REPO_ROOT = Path(__file__).resolve().parents[1]
-if str(REPO_ROOT / "backend") not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT / "backend"))
 
 from dotenv import load_dotenv
 
-from openai_flex import call_openai_flex  # noqa: E402
-from llm import DEFAULT_MODEL, _parse_json_response  # noqa: E402
+from pipeline.concurrency import run_parallel_ordered
+from pipeline.llm_utils import DEFAULT_MODEL, _parse_json_response
+from pipeline.openai_client import call_openai
+from pipeline.record_utils import record_dedupe_key
 from pipeline.screening import (
     CCS_SUBPATHS,
     CCS_SUBPATH_DESCRIPTIONS,
@@ -77,9 +73,7 @@ class ClassifierOptions:
 
 
 def _record_metadata(record: dict, index: int) -> tuple[str, str, str, str, str]:
-    from paper_records import _record_dedupe_key  # noqa: E402
-
-    paper_id = _record_dedupe_key(record) or f"paper:{index}"
+    paper_id = record_dedupe_key(record) or f"paper:{index}"
     title = str(record.get("title") or "").strip() or "Untitled paper"
     abstract = str(record.get("abstract") or "").strip()
     year, _ = normalize_publication_year(record)
@@ -159,7 +153,7 @@ def classify_record(
     )
 
     try:
-        raw = call_openai_flex(
+        raw = call_openai(
             model=opts.model,
             messages=[
                 {"role": "system", "content": SCREENING_SYSTEM_PROMPT},
@@ -218,7 +212,6 @@ def classify_records_parallel(
     concurrency: int | None = None,
 ) -> list[AbstractScreeningResult]:
     """Run bounded parallel abstract screening."""
-    from concurrency import run_parallel_ordered  # noqa: E402
     from pipeline.config import get_extraction_concurrency
 
     opts = options or ClassifierOptions()

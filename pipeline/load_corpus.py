@@ -12,18 +12,13 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-if str(REPO_ROOT / "backend") not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT / "backend"))
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
-from paper_records import (  # noqa: E402
-    _paragraph_text,
-    _record_dedupe_key,
-    _stringify_value,
-    load_paper_records,
-)
-
-from pipeline.config import get_pickle_path
-from pipeline.schema import FilteredPaper, NOT_REPORTED
+from pipeline.corpus_loader import load_paper_records_slice as _load_paper_records_slice
+from pipeline.corpus_text import paragraph_text, stringify_value
+from pipeline.record_utils import record_dedupe_key
+from pipeline.schema import FilteredPaper
 from pipeline.year_utils import normalize_publication_year
 
 logger = logging.getLogger(__name__)
@@ -37,7 +32,7 @@ def _normalize_authors(record: dict) -> list[str]:
         return []
     result: list[str] = []
     for author in authors:
-        text = _stringify_value(author).strip()
+        text = stringify_value(author).strip()
         if text:
             result.append(text)
     return result[:20]
@@ -50,7 +45,7 @@ def normalize_paper(record: dict, index: int) -> FilteredPaper:
     Does not attach paragraph/full-text content. Use attach_full_text() before
     Stage 2 extraction on papers already marked relevant.
     """
-    paper_id = _record_dedupe_key(record) or f"paper:{index}"
+    paper_id = record_dedupe_key(record) or f"paper:{index}"
     title = str(record.get("title") or "").strip()
     abstract = str(record.get("abstract") or "").strip()
     snippet = abstract[:500] if abstract else ""
@@ -80,10 +75,10 @@ def normalize_paper(record: dict, index: int) -> FilteredPaper:
 
 def attach_full_text(paper: FilteredPaper, record: dict) -> FilteredPaper:
     """Attach paragraph body text for Stage 2 extraction (post-screening only)."""
-    paragraph_text = _paragraph_text(record, max_paragraphs=10, max_chars=12000)
+    paragraph_body = paragraph_text(record, max_paragraphs=10, max_chars=12000)
     text = paper.abstract
-    if paragraph_text and paragraph_text not in text:
-        text = f"{text}\n\n{paragraph_text}".strip() if text else paragraph_text
+    if paragraph_body and paragraph_body not in text:
+        text = f"{text}\n\n{paragraph_body}".strip() if text else paragraph_body
     return paper.model_copy(update={"text": text[:12000]})
 
 
@@ -94,10 +89,7 @@ def load_paper_records_slice(
     end: int | None = None,
 ) -> tuple[list[dict], int]:
     """Load a slice of raw pickle records. Returns (records, slice_end)."""
-    pickle_path = Path(path) if path else get_pickle_path()
-    all_records = load_paper_records(str(pickle_path))
-    slice_end = len(all_records) if end is None else end
-    return all_records[start:slice_end], slice_end
+    return _load_paper_records_slice(path=path, start=start, end=end)
 
 
 def load_corpus(
