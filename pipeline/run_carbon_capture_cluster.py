@@ -255,6 +255,11 @@ def main() -> int:
         if args.stage == "extract":
             methodology = get_methodology(args.methodology)
             ranked_path = Path(args.ranked_results)
+            if not ranked_path.is_file():
+                raise FileNotFoundError(
+                    f"Ranked results not found: {ranked_path}. "
+                    "Check OUTPUT_DIR and merge-rank output path.",
+                )
             out_dir = cluster_dir / "shards" / "extract" / methodology.slug
             out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -293,6 +298,11 @@ def main() -> int:
         if args.stage == "export-csv":
             methodology = get_methodology(args.methodology)
             results = read_extraction_shard(args.extraction_results)
+            if not results:
+                raise ValueError(
+                    f"No extraction records in {args.extraction_results}. "
+                    "Re-run extract (check ranked path and OPENAI_API_KEY) before export.",
+                )
             csv_dir = cluster_dir / "csv"
             answers_path, citations_path = write_methodology_csvs(
                 results,

@@ -22,7 +22,7 @@ export OUTPUT_DIR="${OUTPUT_DIR:-$REPO_ROOT/outputs}"
 METHODOLOGY="${METHODOLOGY:?Set METHODOLOGY e.g. amine_absorption}"
 SHARD_SIZE="${SHARD_SIZE:-10000}"
 TASK_ID="${SLURM_ARRAY_TASK_ID:-0}"
-SCREENING="${SCREENING:-outputs/carbon_capture/screening_merged.jsonl}"
+SCREENING="${SCREENING:-${OUTPUT_DIR}/carbon_capture/screening_merged.jsonl}"
 
 python pipeline/run_carbon_capture_cluster.py retrieve \
   --methodology "$METHODOLOGY" \

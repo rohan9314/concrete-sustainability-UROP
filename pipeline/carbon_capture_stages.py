@@ -84,16 +84,36 @@ def extract_methodology_ranked_list(
     input_path: str | Path | None = None,
 ) -> Path:
     """Extract a slice of globally ranked papers for one methodology."""
+    import logging
+
     from pipeline.carbon_capture_io import read_ranked_final
     from pipeline.load_corpus import load_corpus
 
+    logger = logging.getLogger(__name__)
+
     papers: list = []
     for path in ranked_paths:
-        papers.extend(read_ranked_final(path))
+        loaded = read_ranked_final(path)
+        logger.info("Loaded %s ranked papers from %s", len(loaded), path)
+        papers.extend(loaded)
+    total_ranked = len(papers)
+    if total_ranked == 0:
+        paths = ", ".join(str(path) for path in ranked_paths)
+        raise ValueError(
+            f"No ranked papers found in {paths}. "
+            "Check OUTPUT_DIR, merge-rank output, and that files contain type=ranked_paper rows.",
+        )
     if batch_end is not None:
         papers = papers[batch_start:batch_end]
     elif batch_start:
         papers = papers[batch_start:]
+    logger.info(
+        "Extract batch %s-%s: %s papers (from %s total ranked)",
+        batch_start,
+        batch_end if batch_end is not None else total_ranked,
+        len(papers),
+        total_ranked,
+    )
 
     paper_ids = {paper.paper_id for paper in papers}
     if paper_ids:

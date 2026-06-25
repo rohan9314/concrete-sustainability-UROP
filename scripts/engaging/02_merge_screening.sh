@@ -9,6 +9,6 @@ export OUTPUT_DIR="${OUTPUT_DIR:-$REPO_ROOT/outputs}"
 
 python pipeline/run_carbon_capture_cluster.py merge-screen \
   --cluster-dir carbon_capture \
-  --inputs outputs/carbon_capture/shards/screening
+  --inputs "${OUTPUT_DIR}/carbon_capture/shards/screening"
 
-echo "Merged screening -> outputs/carbon_capture/screening_merged.jsonl"
+echo "Merged screening -> ${OUTPUT_DIR}/carbon_capture/screening_merged.jsonl"

@@ -23,11 +23,18 @@ export OUTPUT_DIR="${OUTPUT_DIR:-$REPO_ROOT/outputs}"
 METHODOLOGY="${METHODOLOGY:?Set METHODOLOGY e.g. amine_absorption}"
 EXTRACT_BATCH_SIZE="${EXTRACT_BATCH_SIZE:-5}"
 TASK_ID="${SLURM_ARRAY_TASK_ID:-0}"
-RANKED="outputs/carbon_capture/ranked/${METHODOLOGY}_final.jsonl"
+RANKED="${OUTPUT_DIR}/carbon_capture/ranked/${METHODOLOGY}_final.jsonl"
+
+if [[ ! -f "$RANKED" ]]; then
+  echo "ERROR: Ranked list not found: $RANKED" >&2
+  echo "Set OUTPUT_DIR to where merge-rank wrote files (often not under REPO_ROOT)." >&2
+  exit 1
+fi
 
 python pipeline/run_carbon_capture_cluster.py extract \
   --methodology "$METHODOLOGY" \
   --ranked-results "$RANKED" \
+  --input "$PICKLE_PATH" \
   --task-id "$TASK_ID" \
   --extract-batch-size "$EXTRACT_BATCH_SIZE" \
   --cluster-dir carbon_capture

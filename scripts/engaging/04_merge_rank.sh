@@ -10,10 +10,12 @@ export TOP_N_SOURCES="${TOP_N_SOURCES:-50}"
 
 METHODOLOGY="${METHODOLOGY:?Set METHODOLOGY e.g. amine_absorption}"
 
+RETRIEVE_DIR="${OUTPUT_DIR}/carbon_capture/shards/retrieve/${METHODOLOGY}"
+
 python pipeline/run_carbon_capture_cluster.py merge-rank \
   --methodology "$METHODOLOGY" \
-  --inputs "outputs/carbon_capture/shards/retrieve/${METHODOLOGY}" \
+  --inputs "$RETRIEVE_DIR" \
   --top-n "$TOP_N_SOURCES" \
   --cluster-dir carbon_capture
 
-echo "Global ranked list -> outputs/carbon_capture/ranked/${METHODOLOGY}_final.jsonl"
+echo "Global ranked list -> ${OUTPUT_DIR}/carbon_capture/ranked/${METHODOLOGY}_final.jsonl"
