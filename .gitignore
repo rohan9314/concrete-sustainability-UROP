@@ -10,6 +10,8 @@ backend/.env
 *.pkl
 filtered_records_rohan.pkl
 data/*.pkl
+data/raw/
+data/private/
 
 # Pipeline outputs and cache
 outputs/

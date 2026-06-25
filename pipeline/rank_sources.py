@@ -84,7 +84,6 @@ def rank_sources(
     query_terms: list[str] | None = None,
 ) -> list[RankedPaper]:
     """Rank filtered papers using title+abstract signals only."""
-    top_n = top_n or get_top_n_sources()
     if query_context is None and query_terms:
         query_context = QueryContext(query=" ".join(query_terms))
 
@@ -115,6 +114,12 @@ def rank_sources(
         )
 
     ranked.sort(key=lambda item: item.rank_score, reverse=True)
-    result = ranked[:top_n]
+    if top_n == 0:
+        limit = len(ranked)
+    elif top_n is None:
+        limit = get_top_n_sources()
+    else:
+        limit = top_n
+    result = ranked[:limit]
     logger.info("rank_sources: returning top %s of %s ranked papers", len(result), len(ranked))
     return result
