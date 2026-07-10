@@ -39,7 +39,7 @@ def validate_api_key() -> str:
     if not OPENAI_API_KEY or OPENAI_API_KEY == "YOUR_OPENAI_TOKEN_HERE":
         raise MissingAPIKeyError(
             "OPENAI_API_KEY is missing or still set to the placeholder. "
-            "Paste your OpenAI API key in research_agent/.env as "
+            "Paste your OpenAI API key in concrete_sustainability_urop/.env as "
             "OPENAI_API_KEY=your_key_here"
         )
     return OPENAI_API_KEY

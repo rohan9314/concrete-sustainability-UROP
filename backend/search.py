@@ -65,7 +65,7 @@ def validate_api_key() -> str:
     if not TAVILY_API_KEY or TAVILY_API_KEY == "YOUR_TAVILY_TOKEN_HERE":
         raise MissingAPIKeyError(
             "TAVILY_API_KEY is missing or still set to the placeholder. "
-            "Paste your Tavily API key in research_agent/.env as "
+            "Paste your Tavily API key in concrete_sustainability_urop/.env as "
             "TAVILY_API_KEY=your_key_here"
         )
     return TAVILY_API_KEY

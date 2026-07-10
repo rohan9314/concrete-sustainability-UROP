@@ -1,5 +1,5 @@
 {
-  "name": "concrete-research-agent",
+  "name": "concrete-sustainability-urop",
   "private": true,
   "scripts": {
     "postinstall": "npm install --prefix frontend",

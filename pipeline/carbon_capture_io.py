@@ -6,7 +6,7 @@ import json
 from dataclasses import asdict
 from pathlib import Path
 
-from pipeline.carbon_capture_extraction import CarbonCaptureExtraction, QuestionAnswerRow
+from pipeline.carbon_capture_extraction import CarbonCaptureRow
 from pipeline.schema import RankedPaper
 
 
@@ -89,37 +89,26 @@ def read_ranked_final(path: str | Path) -> list[RankedPaper]:
     return read_ranked_shard(path)
 
 
-def _extraction_from_dict(payload: dict) -> CarbonCaptureExtraction:
-    answers_raw = payload.get("answers") or []
-    answers = [
-        QuestionAnswerRow(
-            question_id=str(item.get("question_id") or ""),
-            question=str(item.get("question") or ""),
-            answer=str(item.get("answer") or ""),
-            confidence=str(item.get("confidence") or ""),
-            source_type_used=list(item.get("source_type_used") or []),
-            sources=list(item.get("sources") or []),
-        )
-        for item in answers_raw
-        if isinstance(item, dict)
-    ]
-    data = {key: value for key, value in payload.items() if key not in {"type", "answers"}}
-    return CarbonCaptureExtraction(answers=answers, **data)
+def _row_from_dict(payload: dict) -> CarbonCaptureRow:
+    data = {key: value for key, value in payload.items() if key not in {"type"}}
+    return CarbonCaptureRow(**data)
 
 
 def write_extraction_shard(
-    results: list[CarbonCaptureExtraction],
+    results: list[CarbonCaptureRow],
     path: str | Path,
     *,
     methodology_slug: str,
     batch_start: int = 0,
     batch_end: int | None = None,
+    source_origin: str = "literature",
 ) -> Path:
     output_path = Path(path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     meta = {
         "type": "extraction_shard_meta",
         "methodology_slug": methodology_slug,
+        "source_origin": source_origin,
         "batch_start": batch_start,
         "batch_end": batch_end if batch_end is not None else batch_start + len(results),
         "result_count": len(results),
@@ -128,27 +117,27 @@ def write_extraction_shard(
         handle.write(json.dumps(meta) + "\n")
         for result in results:
             payload = asdict(result)
-            payload["type"] = "carbon_capture_extraction"
+            payload["type"] = "carbon_capture_row"
             handle.write(json.dumps(payload) + "\n")
     return output_path
 
 
-def read_extraction_shard(path: str | Path) -> list[CarbonCaptureExtraction]:
-    results: list[CarbonCaptureExtraction] = []
+def read_extraction_shard(path: str | Path) -> list[CarbonCaptureRow]:
+    results: list[CarbonCaptureRow] = []
     for payload in _iter_jsonl(path):
-        if payload.get("type") == "carbon_capture_extraction":
-            results.append(_extraction_from_dict(payload))
+        if payload.get("type") == "carbon_capture_row":
+            results.append(_row_from_dict(payload))
     return results
 
 
-def merge_extractions(paths: list[str | Path]) -> list[CarbonCaptureExtraction]:
-    """Merge extraction shard files, deduping by result_id."""
-    best_by_id: dict[str, CarbonCaptureExtraction] = {}
+def merge_extractions(paths: list[str | Path]) -> list[CarbonCaptureRow]:
+    """Merge extraction shard files, deduping by record_id."""
+    best_by_id: dict[str, CarbonCaptureRow] = {}
     for path in paths:
         for result in read_extraction_shard(path):
-            existing = best_by_id.get(result.result_id)
+            existing = best_by_id.get(result.record_id)
             if existing is None or (existing.extraction_error and not result.extraction_error):
-                best_by_id[result.result_id] = result
+                best_by_id[result.record_id] = result
     return list(best_by_id.values())
 
 

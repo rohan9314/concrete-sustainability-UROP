@@ -9,7 +9,7 @@
 
 set -euo pipefail
 
-REPO_ROOT="${REPO_ROOT:-$HOME/research_agent}"
+REPO_ROOT="${REPO_ROOT:-$HOME/concrete_sustainability_urop}"
 cd "$REPO_ROOT"
 
 module load python/3.11 2>/dev/null || true

@@ -8,8 +8,10 @@ backend/.env
 
 # Confidential local datasets
 *.pkl
+*.pickle
 filtered_records_rohan.pkl
 data/*.pkl
+data/*.pickle
 data/raw/
 data/private/
 
@@ -17,6 +19,8 @@ data/private/
 outputs/
 outputs/*.jsonl
 outputs/*.csv
+csv/
+*.csv
 cache/
 backend/outputs/
 backend/cache/

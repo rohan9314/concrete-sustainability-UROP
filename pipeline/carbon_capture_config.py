@@ -28,6 +28,14 @@ class CarbonCaptureMethodology:
         return f"{self.slug}_answers.csv"
 
     @property
+    def literature_filename(self) -> str:
+        return f"{self.slug}_literature.jsonl"
+
+    @property
+    def web_filename(self) -> str:
+        return f"{self.slug}_web.jsonl"
+
+    @property
     def citations_filename(self) -> str:
         return f"{self.slug}_citations.csv"
 
@@ -203,3 +211,27 @@ def get_methodology(slug: str) -> CarbonCaptureMethodology:
 
 def all_methodologies() -> list[CarbonCaptureMethodology]:
     return [CARBON_CAPTURE_METHODOLOGIES[slug] for slug in list_methodology_slugs()]
+
+
+def resolve_methodology_slug(name: str) -> str:
+    """Resolve a slug, display name, or subcategory label to a methodology slug."""
+    key = name.strip().lower()
+    if key in CARBON_CAPTURE_METHODOLOGIES:
+        return key
+
+    normalized = key.replace(" ", "_").replace("-", "_")
+    if normalized in CARBON_CAPTURE_METHODOLOGIES:
+        return normalized
+
+    for slug, methodology in CARBON_CAPTURE_METHODOLOGIES.items():
+        if methodology.subcategory.strip().lower() == key:
+            return slug
+        if methodology.display_name.strip().lower() == key:
+            return slug
+        if methodology.subcategory.strip().lower().replace(" / ", " ") == key:
+            return slug
+
+    available = ", ".join(
+        f"{slug} ({m.subcategory})" for slug, m in CARBON_CAPTURE_METHODOLOGIES.items()
+    )
+    raise KeyError(f"Unknown subcategory or methodology {name!r}. Available: {available}")

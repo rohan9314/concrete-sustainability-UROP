@@ -2,7 +2,7 @@
 # MIT Engaging — merge ranked shards and select global top-N (login node)
 set -euo pipefail
 
-REPO_ROOT="${REPO_ROOT:-$HOME/research_agent}"
+REPO_ROOT="${REPO_ROOT:-$HOME/concrete_sustainability_urop}"
 cd "$REPO_ROOT"
 
 export OUTPUT_DIR="${OUTPUT_DIR:-$REPO_ROOT/outputs}"

@@ -29,6 +29,7 @@ export type PerformanceMetricTag =
 export type ConfidenceLevel = "High" | "Medium" | "Low" | "Not Reported";
 
 export const NOT_REPORTED = "Not Reported";
+export const NA = "N.A.";
 
 export const TRACKED_FIELD_COUNT = 13;
 
@@ -113,7 +114,9 @@ export function isReported(value: string | string[] | undefined | null): boolean
 
 export function displayValue(value: string | undefined | null): string {
   if (!value || !value.trim()) return NOT_REPORTED;
-  return value;
+  const text = value.trim();
+  if (text === NA || text.toLowerCase() === "n.a.") return NA;
+  return text;
 }
 
 export function coverageLabel(record: TechnologyRecord): string {

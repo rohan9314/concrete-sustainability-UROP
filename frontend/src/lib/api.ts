@@ -1,3 +1,4 @@
+import type { CarbonCaptureRecord } from "./carbon-capture-record";
 import type { TechnologyEvaluation } from "@/types/technologyEvaluation";
 import type { TechnologyDatabaseResponse, TechnologyRecord } from "./technology-record";
 import type { ResearchFilters, IntelligenceOptions } from "./technology-intelligence";
@@ -117,6 +118,14 @@ export async function fetchQuestionSets(): Promise<QuestionSetsResponse> {
 
 export async function fetchIntelligenceOptions(): Promise<IntelligenceOptions> {
   return request<IntelligenceOptions>("/api/intelligence-options");
+}
+
+export async function fetchCarbonCaptureRecords(): Promise<{
+  record_count: number;
+  records: CarbonCaptureRecord[];
+  outputs: Record<string, string>;
+}> {
+  return request("/api/carbon-capture-records");
 }
 
 export async function fetchTechnologyDatabase(): Promise<TechnologyDatabaseResponse> {

@@ -1,15 +1,25 @@
 #!/usr/bin/env python3
 """
-Run retrieval and 26-question extraction for carbon capture methodologies.
+Carbon capture extraction pipeline with separate literature and web workflows.
 
-Generates paired answers/citations CSV files under outputs/carbon_capture/.
-
-For full-corpus MIT Engaging runs, use run_carbon_capture_cluster.py instead
-(see docs/engaging_carbon_capture.md). This script is for local slices and smoke tests.
+Architecture:
+    Paper Corpus -> Paper Retrieval -> Paper Extraction -> literature_records.jsonl
+    Internet -> Web Search -> Web Extraction -> web_records.jsonl
+    literature_records.jsonl + web_records.jsonl -> Conservative Merge
+        -> merged_records.jsonl -> final_output.csv
 
 Examples:
-    python pipeline/run_carbon_capture.py --methodology amine_absorption --start 0 --end 5000
+    # Full local run
     python pipeline/run_carbon_capture.py --all --start 0 --end 5000 --top-n 25
+
+    # Local test mode (safe defaults, validation report)
+    python pipeline/run_carbon_capture.py --methodology oxyfuel_combustion \\
+        --test-mode --paper-limit 5 --web-limit 5 --output-dir outputs/test_run
+
+    # Stage-by-stage
+    python pipeline/run_carbon_capture.py --stage literature --all --start 0 --end 5000
+    python pipeline/run_carbon_capture.py --stage web --all
+    python pipeline/run_carbon_capture.py --stage merge
 """
 
 from __future__ import annotations
@@ -23,16 +33,13 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from pipeline.carbon_capture_config import (
-    OUTPUT_DIR_NAME,
-    all_methodologies,
-    get_methodology,
-    list_methodology_slugs,
+from pipeline.carbon_capture_config import list_methodology_slugs, resolve_methodology_slug
+from pipeline.carbon_capture_runner import (
+    CarbonCaptureRunConfig,
+    resolve_output_dir,
+    run_carbon_capture_pipeline,
+    slugs_from_args,
 )
-from pipeline.carbon_capture_export import write_methodology_csvs
-from pipeline.carbon_capture_extraction import extract_methodology_papers_parallel
-from pipeline.carbon_capture_retrieval import retrieve_methodology_papers
-from pipeline.config import get_output_dir, get_top_n_sources
 
 logging.basicConfig(
     level=logging.INFO,
@@ -43,21 +50,32 @@ logger = logging.getLogger("run_carbon_capture")
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Retrieve and extract carbon capture methodology results to CSV.",
+        description="Run the carbon capture literature/web extraction pipeline.",
     )
-    group = parser.add_mutually_exclusive_group(required=True)
+    parser.add_argument(
+        "--stage",
+        choices=("all", "literature", "web", "merge"),
+        default="all",
+        help="Pipeline stage to run (default: all)",
+    )
+    group = parser.add_mutually_exclusive_group(required=False)
     group.add_argument(
         "--methodology",
         type=str,
         help=f"Methodology slug ({', '.join(list_methodology_slugs())})",
     )
     group.add_argument(
+        "--subcategory",
+        type=str,
+        help='Subcategory display name (e.g. "oxyfuel combustion")',
+    )
+    group.add_argument(
         "--all",
         action="store_true",
         help="Run all six carbon capture methodologies",
     )
-    parser.add_argument("--start", type=int, required=True, help="Corpus start index (inclusive)")
-    parser.add_argument("--end", type=int, required=True, help="Corpus end index (exclusive)")
+    parser.add_argument("--start", type=int, default=0, help="Corpus start index (inclusive)")
+    parser.add_argument("--end", type=int, default=5000, help="Corpus end index (exclusive)")
     parser.add_argument(
         "--top-n",
         type=int,
@@ -78,103 +96,95 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--out-dir",
+        "--output-dir",
+        dest="out_dir",
         type=str,
         default="",
-        help=f"Output directory (default: OUTPUT_DIR/{OUTPUT_DIR_NAME})",
+        help="Output directory (default: OUTPUT_DIR; test mode defaults to outputs/test_run)",
     )
     parser.add_argument(
         "--retrieve-only",
         action="store_true",
-        help="Retrieve and rank only; skip LLM extraction and CSV export",
+        help="Retrieve and rank only during literature stage",
+    )
+    parser.add_argument(
+        "--test-mode",
+        action="store_true",
+        help="Lightweight local test run with small limits and validation report",
+    )
+    parser.add_argument(
+        "--paper-limit",
+        type=int,
+        default=None,
+        help="Max papers to extract per subcategory (default: 5 in test mode)",
+    )
+    parser.add_argument(
+        "--web-limit",
+        type=int,
+        default=None,
+        help="Max web sources to extract per subcategory (default: 5 in test mode)",
+    )
+    parser.add_argument(
+        "--skip-web",
+        action="store_true",
+        help="Skip web search and extraction",
+    )
+    parser.add_argument(
+        "--skip-literature",
+        action="store_true",
+        help="Skip literature retrieval and extraction",
+    )
+    parser.add_argument(
+        "--web-max-results-per-query",
+        type=int,
+        default=5,
+        help="Maximum Tavily results per web search query (default: 5)",
     )
     return parser.parse_args()
 
 
-def _output_directory(raw: str) -> Path:
-    if raw:
-        path = Path(raw)
-        return path if path.is_absolute() else (get_output_dir() / path)
-    return get_output_dir() / OUTPUT_DIR_NAME
-
-
-def run_methodology(
-    methodology_slug: str,
-    *,
-    start: int,
-    end: int,
-    top_n: int | None,
-    screening_results: str,
-    input_path: str,
-    output_dir: Path,
-    retrieve_only: bool,
-) -> tuple[Path | None, Path | None]:
-    methodology = get_methodology(methodology_slug)
-    logger.info("Starting methodology=%s (%s)", methodology.slug, methodology.display_name)
-
-    ranked = retrieve_methodology_papers(
-        methodology,
-        start=start,
-        end=end,
-        top_n=top_n,
-        screening_results=screening_results or None,
-        input_path=input_path or None,
-        include_full_text=not retrieve_only,
-    )
-    if retrieve_only:
-        logger.info(
-            "Retrieve-only mode: ranked %s papers for %s",
-            len(ranked),
-            methodology.slug,
-        )
-        return None, None
-
-    if not ranked:
-        logger.warning("No ranked papers for methodology=%s; writing empty CSV files", methodology.slug)
-        results = []
-    else:
-        results = extract_methodology_papers_parallel(ranked, methodology)
-
-    answers_path, citations_path = write_methodology_csvs(results, methodology, output_dir)
-    logger.info(
-        "Wrote %s answers rows and citations for %s -> %s, %s",
-        len(results),
-        methodology.slug,
-        answers_path,
-        citations_path,
-    )
-    return answers_path, citations_path
-
-
 def main() -> int:
     args = _parse_args()
-    if args.start < 0 or args.end <= args.start:
-        logger.error("--end must be greater than --start")
+    if args.stage in {"literature", "all"} and not args.skip_literature and args.end <= args.start:
+        logger.error("--end must be greater than --start for literature retrieval")
         return 1
 
-    output_dir = _output_directory(args.out_dir)
-    top_n = args.top_n or get_top_n_sources()
-    slugs = list_methodology_slugs() if args.all else [args.methodology.strip().lower()]
-
-    for slug in slugs:
-        try:
-            get_methodology(slug)
-        except KeyError as exc:
-            logger.error("%s", exc)
-            return 1
-
-    for slug in slugs:
-        run_methodology(
-            slug,
-            start=args.start,
-            end=args.end,
-            top_n=top_n,
-            screening_results=args.screening_results,
-            input_path=args.input,
-            output_dir=output_dir,
-            retrieve_only=args.retrieve_only,
+    try:
+        slugs = slugs_from_args(
+            subcategory=args.subcategory or "",
+            methodology=args.methodology or "",
+            run_all=args.all,
         )
+    except KeyError as exc:
+        logger.error("%s", exc)
+        return 1
 
-    logger.info("Finished %s methodology run(s)", len(slugs))
+    config = CarbonCaptureRunConfig(
+        slugs=slugs,
+        stage=args.stage,
+        start=args.start,
+        end=args.end,
+        top_n=args.top_n,
+        paper_limit=args.paper_limit,
+        web_limit=args.web_limit,
+        screening_results=args.screening_results,
+        input_path=args.input,
+        output_dir=resolve_output_dir(raw=args.out_dir, test_mode=args.test_mode),
+        test_mode=args.test_mode,
+        skip_web=args.skip_web,
+        skip_literature=args.skip_literature,
+        retrieve_only=args.retrieve_only,
+        web_max_results_per_query=args.web_max_results_per_query,
+    )
+
+    if args.subcategory:
+        try:
+            resolved = resolve_methodology_slug(args.subcategory)
+            logger.info("Resolved subcategory %r -> %s", args.subcategory, resolved)
+        except KeyError:
+            pass
+
+    run_carbon_capture_pipeline(config)
     return 0
 
 

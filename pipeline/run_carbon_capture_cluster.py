@@ -8,10 +8,11 @@ Run one stage per array task, then merge on a login node:
   2. merge-screen — combine screening JSONL shards
   3. retrieve    — methodology ranking shards (no global top_n yet)
   4. merge-rank  — global top-N papers per methodology
-  5. extract     — 26-question extraction on ranked papers
-  6. merge-extract — combine extraction shards
-  7. export-csv  — write final answers/citations CSV files
-  8. plan        — print shard ranges for job arrays
+  5. extract     — literature extraction on ranked papers
+  6. merge-extract — combine literature extraction shards
+  7. web         — Tavily internet search + web extraction (per methodology)
+  8. export-csv  — write final answers CSV (literature + web)
+  9. plan        — print shard ranges for job arrays
 
 Examples:
     python pipeline/run_carbon_capture_cluster.py plan --shard-size 10000
@@ -23,8 +24,11 @@ Examples:
         --inputs outputs/carbon_capture/shards/retrieve/amine_absorption --top-n 50
     python pipeline/run_carbon_capture_cluster.py extract --methodology amine_absorption \\
         --ranked-results outputs/carbon_capture/ranked/amine_absorption_final.jsonl
+    python pipeline/run_carbon_capture_cluster.py web --methodology amine_absorption \\
+        --literature-results outputs/carbon_capture/extractions/amine_absorption_merged.jsonl
     python pipeline/run_carbon_capture_cluster.py export-csv --methodology amine_absorption \\
-        --extraction-results outputs/carbon_capture/extractions/amine_absorption_merged.jsonl
+        --extraction-results outputs/carbon_capture/extractions/amine_absorption_merged.jsonl \\
+        --web-results outputs/carbon_capture/web/amine_absorption_web.jsonl
 """
 
 from __future__ import annotations
@@ -39,12 +43,13 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from pipeline.carbon_capture_config import OUTPUT_DIR_NAME, get_methodology, list_methodology_slugs
-from pipeline.carbon_capture_export import write_methodology_csvs
+from pipeline.carbon_capture_config import OUTPUT_DIR_NAME, get_methodology
+from pipeline.carbon_capture_export import export_methodology_outputs, read_jsonl_rows
 from pipeline.carbon_capture_io import glob_shard_files, read_extraction_shard
 from pipeline.carbon_capture_stages import (
     corpus_record_count,
     extract_methodology_ranked_list,
+    extract_web_for_methodology,
     merge_methodology_extractions,
     merge_methodology_ranked_shards,
     merge_screening_outputs,
@@ -83,6 +88,25 @@ def _resolve_inputs(raw: str, pattern: str = "*.jsonl") -> list[Path]:
     if path.is_dir():
         return glob_shard_files(path, pattern)
     raise FileNotFoundError(f"No inputs found at {raw}")
+
+
+def _web_limit(raw: int | None) -> int | None:
+    if raw is not None:
+        return raw
+    env = os.getenv("WEB_LIMIT", "").strip()
+    if env:
+        return int(env)
+    return get_top_n_sources()
+
+
+def _load_rows(path: str | Path) -> list:
+    file_path = Path(path)
+    if not file_path.is_file():
+        return []
+    rows = read_extraction_shard(file_path)
+    if rows:
+        return rows
+    return read_jsonl_rows(file_path)
 
 
 def _add_common_args(parser: argparse.ArgumentParser) -> None:
@@ -133,10 +157,28 @@ def _build_parser() -> argparse.ArgumentParser:
     merge_extract.add_argument("--methodology", type=str, required=True)
     merge_extract.add_argument("--inputs", type=str, required=True)
 
-    export_csv = subparsers.add_parser("export-csv", help="Write answers/citations CSV")
+    web = subparsers.add_parser("web", help="Internet search + web extraction for one methodology")
+    web.add_argument("--cluster-dir", type=str, default="")
+    web.add_argument("--methodology", type=str, required=True)
+    web.add_argument(
+        "--literature-results",
+        type=str,
+        default="",
+        help="Merged literature extraction JSONL (seeds company/project follow-up queries)",
+    )
+    web.add_argument("--web-limit", type=int, default=None, help="Max web sources to extract")
+    web.add_argument("--web-max-results-per-query", type=int, default=5)
+
+    export_csv = subparsers.add_parser("export-csv", help="Write answers CSV (literature + web)")
     export_csv.add_argument("--cluster-dir", type=str, default="")
     export_csv.add_argument("--methodology", type=str, required=True)
     export_csv.add_argument("--extraction-results", type=str, required=True)
+    export_csv.add_argument(
+        "--web-results",
+        type=str,
+        default="",
+        help="Web extraction JSONL (default: cluster_dir/web/{slug}_web.jsonl)",
+    )
 
     return parser
 
@@ -295,21 +337,75 @@ def main() -> int:
             logger.info("Merged extraction shards -> %s", out_path)
             return 0
 
+        if args.stage == "web":
+            methodology = get_methodology(args.methodology)
+            literature_path = (
+                Path(args.literature_results)
+                if args.literature_results
+                else cluster_dir / "extractions" / f"{methodology.slug}_merged.jsonl"
+            )
+            literature_rows = [
+                row for row in _load_rows(literature_path) if row.source_origin != "web"
+            ]
+            out_dir = cluster_dir / "web"
+            out_dir.mkdir(parents=True, exist_ok=True)
+            out_path = out_dir / f"{methodology.slug}_web.jsonl"
+            extract_web_for_methodology(
+                methodology,
+                literature_rows=literature_rows,
+                output_path=out_path,
+                max_results_per_query=args.web_max_results_per_query,
+                max_total_sources=_web_limit(args.web_limit),
+            )
+            logger.info("Web extraction -> %s", out_path)
+            return 0
+
         if args.stage == "export-csv":
             methodology = get_methodology(args.methodology)
-            results = read_extraction_shard(args.extraction_results)
-            if not results:
+            extraction_path = Path(args.extraction_results)
+            all_extract_rows = _load_rows(extraction_path)
+            literature_rows = [
+                row for row in all_extract_rows if row.source_origin != "web"
+            ]
+            web_path = (
+                Path(args.web_results)
+                if args.web_results
+                else cluster_dir / "web" / f"{methodology.slug}_web.jsonl"
+            )
+            web_rows = [
+                row for row in all_extract_rows if row.source_origin == "web"
+            ]
+            if web_path.is_file():
+                loaded_web = _load_rows(web_path)
+                if loaded_web:
+                    web_rows = loaded_web
+            if not literature_rows and not web_rows:
+                literature_rows = read_jsonl_rows(
+                    cluster_dir / methodology.literature_filename,
+                )
+                web_rows = read_jsonl_rows(cluster_dir / methodology.web_filename)
+            if not literature_rows and not web_rows:
                 raise ValueError(
-                    f"No extraction records in {args.extraction_results}. "
-                    "Re-run extract (check ranked path and OPENAI_API_KEY) before export.",
+                    f"No extraction records in {args.extraction_results}"
+                    + (f" or {web_path}" if web_path.exists() else "")
+                    + ". Re-run extract/web before export.",
                 )
             csv_dir = cluster_dir / "csv"
-            answers_path, citations_path = write_methodology_csvs(
-                results,
-                methodology,
-                csv_dir,
+            _, _, answers_path, summary = export_methodology_outputs(
+                literature_rows=literature_rows,
+                web_rows=web_rows,
+                methodology=methodology,
+                output_dir=csv_dir,
+                deduplicate_on_merge=True,
             )
-            logger.info("CSV export -> %s, %s", answers_path, citations_path)
+            for line in summary.to_log_lines():
+                logger.info(line)
+            logger.info(
+                "CSV export -> %s (literature=%s, web=%s)",
+                answers_path,
+                len(literature_rows),
+                len(web_rows),
+            )
             return 0
 
     except (ValueError, FileNotFoundError, KeyError) as exc:

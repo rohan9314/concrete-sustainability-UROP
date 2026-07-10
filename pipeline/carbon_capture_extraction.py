@@ -1,76 +1,96 @@
-"""26-question extraction for carbon capture methodology results."""
+"""Literature and web extraction for carbon capture methodologies."""
 
 from __future__ import annotations
 
-import json
 import logging
-import re
-from dataclasses import dataclass, field
-from pathlib import Path
+import uuid
+from dataclasses import asdict, dataclass, field
 
 from pipeline.carbon_capture_config import CarbonCaptureMethodology
-from pipeline.carbon_capture_prompts import SYSTEM_PROMPT, build_extraction_prompt
+from pipeline.carbon_capture_prompts import (
+    SYSTEM_PROMPT,
+    build_literature_extraction_prompt,
+    build_web_extraction_prompt,
+)
+from pipeline.carbon_capture_schema import (
+    NA,
+    ValidationStats,
+    empty_canonical_row,
+    expand_llm_payload,
+    validate_and_normalize_row,
+)
 from pipeline.concurrency import run_parallel_ordered
 from pipeline.config import get_extraction_concurrency
 from pipeline.llm_utils import DEFAULT_MODEL, InvalidJSONError, _parse_json_response
 from pipeline.openai_client import call_openai
-from pipeline.schema import NOT_REPORTED, RankedPaper
+from pipeline.schema import RankedPaper
 
 logger = logging.getLogger(__name__)
 
-QUESTION_SET_PATH = (
-    Path(__file__).resolve().parents[1] / "backend" / "questions" / "carbon_capture.json"
-)
-QUESTION_BATCH_SIZE = 13
-
 
 @dataclass
-class QuestionAnswerRow:
-    question_id: str
-    question: str
-    answer: str
-    confidence: str
-    source_type_used: list[str] = field(default_factory=list)
-    sources: list[dict] = field(default_factory=list)
+class CarbonCaptureRow:
+    """One canonical output row plus pipeline metadata."""
 
-
-@dataclass
-class CarbonCaptureExtraction:
+    record_id: str
     result_id: str
     methodology_slug: str
     methodology_display: str
-    category: str
-    subcategory: str
-    paper_id: str
-    paper_title: str
-    paper_year: str
-    paper_doi: str
-    paper_url: str
-    rank_score: float
-    technology_name: str
-    solution_or_technology_type: str
-    company_or_organization: str
-    project_name: str
-    deployment_stage: str
-    co2_reduction: str
-    cost_impact: str
-    energy_impact: str
-    confidence: str
-    notes: str
-    answers: list[QuestionAnswerRow] = field(default_factory=list)
+    source_origin: str
+    paper_id: str = ""
+    rank_score: float = 0.0
     extraction_error: str = ""
+    category: str = NA
+    subcategory: str = NA
+    technology_type: str = NA
+    company_or_organization: str = NA
+    project_name: str = NA
+    project_year: str = NA
+    project_location: str = NA
+    deployment_stage: str = NA
+    metric_dimension: str = NA
+    metric_name: str = NA
+    metric_value: str = NA
+    metric_unit: str = NA
+    metric_boundary: str = NA
+    co2_reduction: str = NA
+    energy_impact: str = NA
+    cost_impact: str = NA
+    primary_barriers: str = NA
+    source_type: str = NA
+    source_title: str = NA
+    source_url_or_citation: str = NA
+    confidence: str = NA
+    notes: str = NA
 
+    def to_canonical_dict(self) -> dict[str, str]:
+        return {field: str(getattr(self, field)) for field in (
+            "category",
+            "subcategory",
+            "technology_type",
+            "company_or_organization",
+            "project_name",
+            "project_year",
+            "project_location",
+            "deployment_stage",
+            "metric_dimension",
+            "metric_name",
+            "metric_value",
+            "metric_unit",
+            "metric_boundary",
+            "co2_reduction",
+            "energy_impact",
+            "cost_impact",
+            "primary_barriers",
+            "source_type",
+            "source_title",
+            "source_url_or_citation",
+            "confidence",
+            "notes",
+        )}
 
-def load_evaluation_questions() -> list[str]:
-    data = json.loads(QUESTION_SET_PATH.read_text(encoding="utf-8"))
-    questions = data.get("questions")
-    if not isinstance(questions, list) or not questions:
-        raise ValueError(f"Invalid question set at {QUESTION_SET_PATH}")
-    return [str(question).strip() for question in questions]
-
-
-def question_ids(count: int = 26) -> list[str]:
-    return [f"Q{index:02d}" for index in range(1, count + 1)]
+    def to_dict(self) -> dict:
+        return asdict(self)
 
 
 def ranked_paper_to_source(paper: RankedPaper) -> dict:
@@ -79,10 +99,10 @@ def ranked_paper_to_source(paper: RankedPaper) -> dict:
         url = f"https://doi.org/{paper.doi}"
     body = paper.text or paper.abstract or paper.snippet
     return {
-        "source_type": "scientific_paper",
+        "source_type": "Literature",
         "title": paper.title,
         "url": url,
-        "snippet": paper.snippet or paper.abstract[:500],
+        "snippet": paper.snippet or (paper.abstract[:500] if paper.abstract else ""),
         "full_text": body,
         "metadata": {
             "authors": paper.authors,
@@ -94,131 +114,46 @@ def ranked_paper_to_source(paper: RankedPaper) -> dict:
     }
 
 
-def format_sources_for_llm(sources: list[dict]) -> str:
-    sections: list[str] = []
-    for index, source in enumerate(sources, start=1):
-        metadata = source.get("metadata") or {}
-        body = source.get("full_text") or source.get("snippet") or "No content available."
-        meta_lines: list[str] = []
-        authors = metadata.get("authors") or []
-        if authors:
-            meta_lines.append(f"Authors: {', '.join(authors)}")
-        if metadata.get("year"):
-            meta_lines.append(f"Year: {metadata['year']}")
-        if metadata.get("journal"):
-            meta_lines.append(f"Journal: {metadata['journal']}")
-        if metadata.get("doi"):
-            meta_lines.append(f"DOI: {metadata['doi']}")
-        if source.get("paper_id"):
-            meta_lines.append(f"Paper ID: {source['paper_id']}")
+def format_literature_source_for_llm(source: dict) -> str:
+    metadata = source.get("metadata") or {}
+    body = source.get("full_text") or source.get("snippet") or "No content available."
+    meta_lines: list[str] = []
+    authors = metadata.get("authors") or []
+    if authors:
+        meta_lines.append(f"Authors: {', '.join(authors)}")
+    if metadata.get("year"):
+        meta_lines.append(f"Year: {metadata['year']}")
+    if metadata.get("journal"):
+        meta_lines.append(f"Journal: {metadata['journal']}")
+    if metadata.get("doi"):
+        meta_lines.append(f"DOI: {metadata['doi']}")
+    if source.get("paper_id"):
+        meta_lines.append(f"Paper ID: {source['paper_id']}")
 
-        metadata_block = "\n".join(meta_lines)
-        if metadata_block:
-            metadata_block = f"{metadata_block}\n"
+    metadata_block = "\n".join(meta_lines)
+    if metadata_block:
+        metadata_block = f"{metadata_block}\n"
 
-        sections.append(
-            f"--- SCIENTIFIC PAPER SOURCE {index} ---\n"
-            f"Title: {source.get('title', '')}\n"
-            f"URL: {source.get('url', '')}\n"
-            f"Source Type: scientific_paper\n"
-            f"{metadata_block}"
-            f"Content:\n{body}\n",
-        )
-    return "\n".join(sections) if sections else "No sources available."
-
-
-def _normalize_source(raw: dict | None) -> dict:
-    source = raw if isinstance(raw, dict) else {}
-    return {
-        "title": str(source.get("title") or ""),
-        "url": str(source.get("url") or ""),
-        "source_type": "scientific_paper",
-        "snippet": str(source.get("snippet") or ""),
-        "full_text": str(source.get("full_text") or ""),
-        "metadata": source.get("metadata") if isinstance(source.get("metadata"), dict) else {},
-        "paper_id": str(source.get("paper_id") or ""),
-    }
-
-
-def _normalize_answer(raw: dict | None, fallback_question: str) -> QuestionAnswerRow:
-    answer = raw if isinstance(raw, dict) else {}
-    sources_raw = answer.get("sources")
-    if not isinstance(sources_raw, list):
-        sources_raw = []
-    source_type_used = answer.get("source_type_used")
-    if not isinstance(source_type_used, list):
-        source_type_used = []
-
-    return QuestionAnswerRow(
-        question_id="",
-        question=str(answer.get("question") or fallback_question),
-        answer=str(answer.get("answer") or "").strip() or "Not Found",
-        confidence=str(answer.get("confidence") or "").strip() or "Low",
-        source_type_used=[str(item) for item in source_type_used if str(item).strip()],
-        sources=[_normalize_source(item) for item in sources_raw],
+    return (
+        f"Title: {source.get('title', '')}\n"
+        f"URL: {source.get('url', '')}\n"
+        f"Source Type: Literature\n"
+        f"{metadata_block}"
+        f"Content:\n{body}\n"
     )
 
 
-def _normalize_answers(
-    data: dict,
-    questions: list[str],
-    ids: list[str],
-) -> list[QuestionAnswerRow]:
-    raw_answers = data.get("answers") or []
-    if not isinstance(raw_answers, list):
-        raw_answers = []
-
-    by_question: dict[str, dict] = {}
-    unmatched: list[dict] = []
-    for item in raw_answers:
-        if not isinstance(item, dict):
-            continue
-        question_text = str(item.get("question") or "").strip()
-        if question_text and question_text not in by_question:
-            by_question[question_text] = item
-        else:
-            unmatched.append(item)
-
-    normalized: list[QuestionAnswerRow] = []
-    used_unmatched = 0
-    for question_id, expected_question in zip(ids, questions, strict=True):
-        if expected_question in by_question:
-            row = _normalize_answer(by_question[expected_question], expected_question)
-        elif used_unmatched < len(unmatched):
-            row = _normalize_answer(unmatched[used_unmatched], expected_question)
-            used_unmatched += 1
-        else:
-            row = _normalize_answer(
-                {
-                    "question": expected_question,
-                    "answer": "Not Found",
-                    "confidence": "Low",
-                    "source_type_used": [],
-                    "sources": [],
-                },
-                expected_question,
-            )
-        row.question_id = question_id
-        normalized.append(row)
-    return normalized
-
-
-def _extract_question_batch(
-    *,
-    methodology: CarbonCaptureMethodology,
-    source: dict,
-    questions: list[str],
-    question_ids_batch: list[str],
-    technology_name: str,
-    model: str,
-) -> list[QuestionAnswerRow]:
-    prompt = build_extraction_prompt(
-        technology_name=technology_name,
-        methodology_name=methodology.display_name,
-        methodology_subcategory=methodology.subcategory,
-        source_content=format_sources_for_llm([source]),
-        questions=questions,
+def format_web_source_for_llm(source: dict) -> str:
+    body = source.get("full_text") or source.get("snippet") or source.get("content") or ""
+    return (
+        f"Title: {source.get('title', '')}\n"
+        f"URL: {source.get('url', '')}\n"
+        f"Source Type: Web\n"
+        f"Content:\n{body}\n"
     )
+
+
+def _call_extraction_llm(*, prompt: str, model: str) -> dict:
     raw = call_openai(
         model=model,
         messages=[
@@ -228,192 +163,252 @@ def _extract_question_batch(
         temperature=0.1,
         response_format={"type": "json_object"},
     )
-    data = _parse_json_response(raw)
-    return _normalize_answers(data, questions, question_ids_batch)
+    return _parse_json_response(raw)
 
 
-def _answer_by_id(answers: list[QuestionAnswerRow], question_id: str) -> str:
-    for row in answers:
-        if row.question_id == question_id:
-            return row.answer
-    return NOT_REPORTED
+def _rows_from_payload(
+    *,
+    payload: dict,
+    methodology: CarbonCaptureMethodology,
+    source_origin: str,
+    result_id: str,
+    paper: RankedPaper | None,
+    stats: ValidationStats,
+) -> list[CarbonCaptureRow]:
+    canonical_rows = expand_llm_payload(payload, stats=stats)
+    if not canonical_rows:
+        fallback = empty_canonical_row()
+        fallback["source_type"] = "Literature" if source_origin == "literature" else "Web"
+        fallback["category"] = methodology.category
+        fallback["subcategory"] = methodology.subcategory
+        if paper is not None:
+            fallback["source_title"] = paper.title
+            fallback["source_url_or_citation"] = paper.url or (
+                f"https://doi.org/{paper.doi}" if paper.doi else NA
+            )
+        canonical_rows = [validate_and_normalize_row(fallback, stats=stats)]
+
+    rows: list[CarbonCaptureRow] = []
+    for index, canonical in enumerate(canonical_rows):
+        if canonical.get("category") == NA:
+            canonical["category"] = methodology.category
+        if canonical.get("subcategory") == NA:
+            canonical["subcategory"] = methodology.subcategory
+        if paper is not None:
+            if canonical.get("source_title") == NA:
+                canonical["source_title"] = paper.title
+            if canonical.get("source_url_or_citation") == NA:
+                canonical["source_url_or_citation"] = paper.url or (
+                    f"https://doi.org/{paper.doi}" if paper.doi else NA
+                )
+            if canonical.get("source_type") == NA:
+                canonical["source_type"] = "Literature"
+
+        row = CarbonCaptureRow(
+            record_id=f"{result_id}:{index}",
+            result_id=result_id,
+            methodology_slug=methodology.slug,
+            methodology_display=methodology.display_name,
+            source_origin=source_origin,
+            paper_id=paper.paper_id if paper else "",
+            rank_score=paper.rank_score if paper else 0.0,
+            **canonical,
+        )
+        rows.append(row)
+    return rows
 
 
-def _combine_text(*values: str) -> str:
-    parts = [value.strip() for value in values if value and value.strip() not in {"", NOT_REPORTED, "Not Found"}]
-    return " | ".join(parts) if parts else NOT_REPORTED
-
-
-def _infer_project_name(answers: list[QuestionAnswerRow]) -> str:
-    text = _answer_by_id(answers, "Q23")
-    if text in {NOT_REPORTED, "Not Found"}:
-        return NOT_REPORTED
-    match = re.search(r"(?:project|pilot|demonstration|plant|facility)\s+[A-Z][\w\s\-]{2,60}", text)
-    return match.group(0).strip() if match else NOT_REPORTED
-
-
-def _build_result(
+def _error_row(
     *,
     methodology: CarbonCaptureMethodology,
-    paper: RankedPaper,
-    answers: list[QuestionAnswerRow],
-) -> CarbonCaptureExtraction:
-    technology_name = _answer_by_id(answers, "Q01")
-    if technology_name in {NOT_REPORTED, "Not Found"}:
-        technology_name = paper.title[:120] or methodology.display_name
-
-    overall_confidence = _answer_by_id(answers, "Q25")
-    if overall_confidence in {NOT_REPORTED, "Not Found"}:
-        overall_confidence = "Low"
-
-    return CarbonCaptureExtraction(
-        result_id=f"{methodology.slug}:{paper.paper_id}",
+    source_origin: str,
+    result_id: str,
+    paper: RankedPaper | None,
+    message: str,
+) -> CarbonCaptureRow:
+    row = CarbonCaptureRow(
+        record_id=f"{result_id}:0",
+        result_id=result_id,
         methodology_slug=methodology.slug,
         methodology_display=methodology.display_name,
+        source_origin=source_origin,
+        paper_id=paper.paper_id if paper else "",
+        rank_score=paper.rank_score if paper else 0.0,
         category=methodology.category,
         subcategory=methodology.subcategory,
-        paper_id=paper.paper_id,
-        paper_title=paper.title,
-        paper_year=paper.year,
-        paper_doi=paper.doi,
-        paper_url=paper.url,
-        rank_score=paper.rank_score,
-        technology_name=technology_name,
-        solution_or_technology_type=_answer_by_id(answers, "Q06"),
-        company_or_organization=_answer_by_id(answers, "Q03"),
-        project_name=_infer_project_name(answers),
-        deployment_stage=_answer_by_id(answers, "Q04"),
-        co2_reduction=_combine_text(_answer_by_id(answers, "Q07"), _answer_by_id(answers, "Q09")),
-        cost_impact=_combine_text(
-            _answer_by_id(answers, "Q16"),
-            _answer_by_id(answers, "Q17"),
-            _answer_by_id(answers, "Q18"),
+        source_type="Literature" if source_origin == "literature" else "Web",
+        source_title=paper.title if paper else NA,
+        source_url_or_citation=(
+            paper.url or (f"https://doi.org/{paper.doi}" if paper and paper.doi else NA)
         ),
-        energy_impact=_combine_text(
-            _answer_by_id(answers, "Q13"),
-            _answer_by_id(answers, "Q14"),
-            _answer_by_id(answers, "Q15"),
-        ),
-        confidence=overall_confidence,
-        notes=_answer_by_id(answers, "Q26"),
-        answers=answers,
+        confidence=NA,
+        extraction_error=message,
     )
+    return row
 
 
-def extract_methodology_paper(
+def extract_literature_from_paper(
     paper: RankedPaper,
     methodology: CarbonCaptureMethodology,
     *,
-    questions: list[str] | None = None,
     model: str = DEFAULT_MODEL,
-) -> CarbonCaptureExtraction:
-    """Run 26-question extraction for one ranked paper and methodology."""
-    all_questions = questions or load_evaluation_questions()
-    ids = question_ids(len(all_questions))
+    stats: ValidationStats | None = None,
+) -> list[CarbonCaptureRow]:
+    """Extract canonical rows from one ranked literature source."""
+    local_stats = stats or ValidationStats()
+    result_id = f"{methodology.slug}:{paper.paper_id}"
     source = ranked_paper_to_source(paper)
-    technology_name = f"{methodology.display_name} — {paper.title[:80]}"
-
-    batches = [
-        (
-            all_questions[start : start + QUESTION_BATCH_SIZE],
-            ids[start : start + QUESTION_BATCH_SIZE],
-        )
-        for start in range(0, len(all_questions), QUESTION_BATCH_SIZE)
-    ]
-
-    merged_answers: list[QuestionAnswerRow] = []
+    prompt = build_literature_extraction_prompt(
+        methodology_name=methodology.display_name,
+        methodology_subcategory=methodology.subcategory,
+        source_content=format_literature_source_for_llm(source),
+    )
     try:
-        for batch_questions, batch_ids in batches:
-            merged_answers.extend(
-                _extract_question_batch(
-                    methodology=methodology,
-                    source=source,
-                    questions=batch_questions,
-                    question_ids_batch=batch_ids,
-                    technology_name=technology_name,
-                    model=model,
-                ),
-            )
+        payload = _call_extraction_llm(prompt=prompt, model=model)
+        return _rows_from_payload(
+            payload=payload,
+            methodology=methodology,
+            source_origin="literature",
+            result_id=result_id,
+            paper=paper,
+            stats=local_stats,
+        )
     except (InvalidJSONError, Exception) as exc:
         message = str(exc) or exc.__class__.__name__
         logger.warning(
-            "Extraction failed for %s (%s): %s",
+            "Literature extraction failed for %s (%s): %s",
             paper.paper_id,
             methodology.slug,
             message,
         )
-        return CarbonCaptureExtraction(
-            result_id=f"{methodology.slug}:{paper.paper_id}",
-            methodology_slug=methodology.slug,
-            methodology_display=methodology.display_name,
-            category=methodology.category,
-            subcategory=methodology.subcategory,
-            paper_id=paper.paper_id,
-            paper_title=paper.title,
-            paper_year=paper.year,
-            paper_doi=paper.doi,
-            paper_url=paper.url,
-            rank_score=paper.rank_score,
-            technology_name=paper.title[:120] or methodology.display_name,
-            solution_or_technology_type=NOT_REPORTED,
-            company_or_organization=NOT_REPORTED,
-            project_name=NOT_REPORTED,
-            deployment_stage=NOT_REPORTED,
-            co2_reduction=NOT_REPORTED,
-            cost_impact=NOT_REPORTED,
-            energy_impact=NOT_REPORTED,
-            confidence="Low",
-            notes=NOT_REPORTED,
-            extraction_error=message,
+        return [
+            _error_row(
+                methodology=methodology,
+                source_origin="literature",
+                result_id=result_id,
+                paper=paper,
+                message=message,
+            ),
+        ]
+
+
+def extract_web_from_source(
+    source: dict,
+    methodology: CarbonCaptureMethodology,
+    *,
+    model: str = DEFAULT_MODEL,
+    stats: ValidationStats | None = None,
+) -> list[CarbonCaptureRow]:
+    """Extract canonical rows from one web source."""
+    local_stats = stats or ValidationStats()
+    url = str(source.get("url") or "").strip()
+    result_id = f"{methodology.slug}:web:{uuid.uuid5(uuid.NAMESPACE_URL, url or str(source.get('title'))).hex[:12]}"
+    prompt = build_web_extraction_prompt(
+        methodology_name=methodology.display_name,
+        methodology_subcategory=methodology.subcategory,
+        source_content=format_web_source_for_llm(source),
+    )
+    try:
+        payload = _call_extraction_llm(prompt=prompt, model=model)
+        return _rows_from_payload(
+            payload=payload,
+            methodology=methodology,
+            source_origin="web",
+            result_id=result_id,
+            paper=None,
+            stats=local_stats,
         )
+    except (InvalidJSONError, Exception) as exc:
+        message = str(exc) or exc.__class__.__name__
+        logger.warning(
+            "Web extraction failed for %s (%s): %s",
+            url or source.get("title"),
+            methodology.slug,
+            message,
+        )
+        return [
+            _error_row(
+                methodology=methodology,
+                source_origin="web",
+                result_id=result_id,
+                paper=None,
+                message=message,
+            ),
+        ]
 
-    return _build_result(methodology=methodology, paper=paper, answers=merged_answers)
 
-
-def extract_methodology_papers_parallel(
+from pipeline.carbon_capture_web import discover_web_sources  # noqa: F401 — re-export
+def extract_literature_papers_parallel(
     papers: list[RankedPaper],
     methodology: CarbonCaptureMethodology,
     *,
     model: str = DEFAULT_MODEL,
     concurrency: int | None = None,
-) -> list[CarbonCaptureExtraction]:
-    """Extract 26-question results for all ranked papers in parallel."""
+    stats: ValidationStats | None = None,
+) -> list[CarbonCaptureRow]:
+    """Extract canonical rows from ranked literature papers in parallel."""
+    local_stats = stats or ValidationStats()
     limit = concurrency or get_extraction_concurrency()
 
-    def worker(paper: RankedPaper) -> CarbonCaptureExtraction:
-        return extract_methodology_paper(paper, methodology, model=model)
+    def worker(paper: RankedPaper) -> list[CarbonCaptureRow]:
+        return extract_literature_from_paper(
+            paper,
+            methodology,
+            model=model,
+            stats=local_stats,
+        )
 
-    parallel = run_parallel_ordered(papers, worker, concurrency=limit, label=methodology.slug)
-    results: list[CarbonCaptureExtraction] = []
+    parallel = run_parallel_ordered(papers, worker, concurrency=limit, label=f"{methodology.slug}:lit")
+    rows: list[CarbonCaptureRow] = []
     for item in parallel:
         if item.success and item.value is not None:
-            results.append(item.value)
+            rows.extend(item.value)
         elif item.item is not None:
             paper = item.item
-            results.append(
-                CarbonCaptureExtraction(
+            rows.append(
+                _error_row(
+                    methodology=methodology,
+                    source_origin="literature",
                     result_id=f"{methodology.slug}:{paper.paper_id}",
-                    methodology_slug=methodology.slug,
-                    methodology_display=methodology.display_name,
-                    category=methodology.category,
-                    subcategory=methodology.subcategory,
-                    paper_id=paper.paper_id,
-                    paper_title=paper.title,
-                    paper_year=paper.year,
-                    paper_doi=paper.doi,
-                    paper_url=paper.url,
-                    rank_score=paper.rank_score,
-                    technology_name=paper.title[:120] or methodology.display_name,
-                    solution_or_technology_type=NOT_REPORTED,
-                    company_or_organization=NOT_REPORTED,
-                    project_name=NOT_REPORTED,
-                    deployment_stage=NOT_REPORTED,
-                    co2_reduction=NOT_REPORTED,
-                    cost_impact=NOT_REPORTED,
-                    energy_impact=NOT_REPORTED,
-                    confidence="Low",
-                    notes=NOT_REPORTED,
-                    extraction_error=item.error or "Extraction worker failed",
+                    paper=paper,
+                    message=item.error or "Literature extraction worker failed",
                 ),
             )
-    return results
+    return rows
+
+
+def extract_web_sources_parallel(
+    sources: list[dict],
+    methodology: CarbonCaptureMethodology,
+    *,
+    model: str = DEFAULT_MODEL,
+    concurrency: int | None = None,
+    stats: ValidationStats | None = None,
+) -> list[CarbonCaptureRow]:
+    """Extract canonical rows from web sources in parallel."""
+    if not sources:
+        return []
+
+    local_stats = stats or ValidationStats()
+    limit = concurrency or get_extraction_concurrency()
+
+    def worker(source: dict) -> list[CarbonCaptureRow]:
+        return extract_web_from_source(source, methodology, model=model, stats=local_stats)
+
+    parallel = run_parallel_ordered(sources, worker, concurrency=limit, label=f"{methodology.slug}:web")
+    rows: list[CarbonCaptureRow] = []
+    for item in parallel:
+        if item.success and item.value is not None:
+            rows.extend(item.value)
+        elif item.item is not None:
+            source = item.item
+            rows.append(
+                _error_row(
+                    methodology=methodology,
+                    source_origin="web",
+                    result_id=f"{methodology.slug}:web:error",
+                    paper=None,
+                    message=item.error or "Web extraction worker failed",
+                ),
+            )
+    return rows

@@ -6,7 +6,11 @@ import logging
 from pathlib import Path
 
 from pipeline.carbon_capture_config import CarbonCaptureMethodology, get_methodology
-from pipeline.carbon_capture_extraction import extract_methodology_papers_parallel
+from pipeline.carbon_capture_extraction import (
+    CarbonCaptureRow,
+    extract_literature_papers_parallel,
+    extract_web_sources_parallel,
+)
 from pipeline.carbon_capture_io import (
     merge_extractions,
     merge_ranked_papers,
@@ -16,6 +20,8 @@ from pipeline.carbon_capture_io import (
     write_ranked_shard,
 )
 from pipeline.carbon_capture_retrieval import retrieve_methodology_papers
+from pipeline.carbon_capture_schema import ValidationStats
+from pipeline.carbon_capture_web import discover_web_sources
 from pipeline.corpus_loader import load_paper_records
 
 logger = logging.getLogger(__name__)
@@ -139,7 +145,7 @@ def extract_methodology_ranked_list(
             for paper in papers
         ]
 
-    results = extract_methodology_papers_parallel(
+    results = extract_literature_papers_parallel(
         papers,
         methodology,
         concurrency=concurrency,
@@ -150,6 +156,7 @@ def extract_methodology_ranked_list(
         methodology_slug=methodology.slug,
         batch_start=batch_start,
         batch_end=batch_end if batch_end is not None else batch_start + len(results),
+        source_origin="literature",
     )
 
 
@@ -168,6 +175,52 @@ def merge_methodology_extractions(
         methodology_slug=methodology_slug,
         batch_start=0,
         batch_end=len(merged),
+    )
+
+
+def extract_web_for_methodology(
+    methodology: CarbonCaptureMethodology,
+    *,
+    literature_rows: list[CarbonCaptureRow],
+    output_path: str | Path,
+    max_results_per_query: int = 5,
+    max_total_sources: int | None = None,
+    concurrency: int | None = None,
+    stats: ValidationStats | None = None,
+) -> Path:
+    """
+    Discover and extract web sources for one methodology.
+
+    Uses technology-level Tavily queries plus company/project follow-ups seeded
+    from literature extraction rows.
+    """
+    sources = discover_web_sources(
+        methodology,
+        seed_rows=literature_rows,
+        max_results_per_query=max_results_per_query,
+        max_total_sources=max_total_sources,
+    )
+    rows: list[CarbonCaptureRow] = []
+    if sources:
+        rows = extract_web_sources_parallel(
+            sources,
+            methodology,
+            concurrency=concurrency,
+            stats=stats,
+        )
+    logger.info(
+        "Web extraction for %s: %s sources -> %s rows",
+        methodology.slug,
+        len(sources),
+        len(rows),
+    )
+    return write_extraction_shard(
+        rows,
+        output_path,
+        methodology_slug=methodology.slug,
+        batch_start=0,
+        batch_end=len(rows),
+        source_origin="web",
     )
 
 

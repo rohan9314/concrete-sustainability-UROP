@@ -6,6 +6,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from carbon_capture_records import get_carbon_capture_output_paths, list_carbon_capture_records
 from evaluations_routes import router as evaluations_router
 from intelligence_constants import INTELLIGENCE_OPTIONS
 from jobs import create_research_job, get_research_job
@@ -64,6 +65,16 @@ def question_sets() -> dict:
 @app.get("/api/intelligence-options")
 def intelligence_options() -> dict:
     return INTELLIGENCE_OPTIONS
+
+
+@app.get("/api/carbon-capture-records")
+def carbon_capture_records() -> dict:
+    records = list_carbon_capture_records()
+    return {
+        "record_count": len(records),
+        "records": records,
+        "outputs": get_carbon_capture_output_paths(),
+    }
 
 
 @app.get("/api/technology-database")
