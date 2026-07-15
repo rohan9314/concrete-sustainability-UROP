@@ -76,72 +76,101 @@ Corpus (~159k papers)
 
 ## Setup on Engaging
 
-```bash
-git clone <repo> ~/concrete_sustainability_urop
-cd ~/concrete_sustainability_urop
+Default cluster checkout:
 
-# Lightweight deps (includes tavily-python for web search)
+```text
+REPO_ROOT=/home/rohan931/urop/concrete-sustainability-UROP
+scripts  → $REPO_ROOT/scripts/engaging/
+outputs  → $REPO_ROOT/outputs/
+pickle   → $REPO_ROOT/filtered_records_rohan.pkl
+```
+
+```bash
+# ── Setup (once) ──────────────────────────────────────────
+cd /home/rohan931/urop/concrete-sustainability-UROP
+git pull origin main
 python -m pip install --user -r requirements-screening.txt
 
-# Copy pickle to cluster storage (not in git)
-export PICKLE_PATH=$HOME/filtered_records_rohan.pkl
-export OPENAI_API_KEY=sk-...
-export TAVILY_API_KEY=tvly-...
-export OUTPUT_DIR=$HOME/concrete_sustainability_urop/outputs
+export REPO_ROOT=/home/rohan931/urop/concrete-sustainability-UROP
+export PICKLE_PATH=$REPO_ROOT/filtered_records_rohan.pkl
+export OPENAI_API_KEY=sk-...          # required for screen / extract / web
+export TAVILY_API_KEY=tvly-...        # required for web search
+export OUTPUT_DIR=$REPO_ROOT/outputs
 export EXTRACTION_CONCURRENCY=4
 export TOP_N_SOURCES=50
 export WEB_LIMIT=50
 export SHARD_SIZE=10000
-```
 
-## Plan shards
+mkdir -p logs
 
-```bash
+# Plan shards, then set #SBATCH --array=0-N in scripts to match
 python pipeline/run_carbon_capture_cluster.py plan --shard-size 10000
 # Example: 159372 records → 16 shards (tasks 0–15)
 ```
 
-Update `#SBATCH --array=0-15` in the shell scripts to match.
+Scripts resolve `REPO_ROOT` from their own location when unset, but exporting
+`REPO_ROOT` / `OUTPUT_DIR` / API keys is still recommended (especially for SLURM).
 
-## Run stages
-
-Scripts live in `scripts/engaging/`.
+## Run all stages automatically (recommended)
 
 ```bash
-mkdir -p logs
+cd /home/rohan931/urop/concrete-sustainability-UROP
+export OPENAI_API_KEY=sk-...
+export TAVILY_API_KEY=tvly-...
 
-# 1. Screen all papers (array)
-sbatch scripts/engaging/01_screen_array.sh
+bash scripts/engaging/run_full_pipeline.sh
+```
 
-# 2. Merge screening (after array completes)
+This submits stages 1–8 as a SLURM dependency chain (`afterok:...`), so you do not
+need to run each step by hand. Monitor with `squeue -u $USER`.
+
+Useful options:
+
+```bash
+SKIP_SCREEN=1 bash scripts/engaging/run_full_pipeline.sh   # reuse existing screening
+SKIP_WEB=1 bash scripts/engaging/run_full_pipeline.sh      # literature-only
+START_FROM=5 bash scripts/engaging/run_full_pipeline.sh    # resume at extract
+```
+
+## Run stages manually
+
+Scripts live in `/home/rohan931/urop/concrete-sustainability-UROP/scripts/engaging/`.
+
+```bash
+cd /home/rohan931/urop/concrete-sustainability-UROP
+
+# ── 1. Screen all papers ──────────────────────────────────
+sbatch --export=ALL scripts/engaging/01_screen_array.sh
+# wait until array finishes: squeue -u $USER
+
+# ── 2. Merge screening ────────────────────────────────────
 bash scripts/engaging/02_merge_screening.sh
 
-# 3. Retrieve/rank per methodology (submit 6 arrays)
+# ── 3. Retrieve/rank (all 6 methodologies) ────────────────
 bash scripts/engaging/submit_all_retrieve.sh
-# Or one methodology:
-# METHODOLOGY=amine_absorption sbatch scripts/engaging/03_retrieve_array.sh
+# wait until arrays finish
 
-# 4. Global top-N per methodology
+# ── 4. Global top-N per methodology ───────────────────────
 for m in amine_absorption membrane_separation calcium_looping oxyfuel_combustion cryogenic_capture mineralization; do
   METHODOLOGY=$m bash scripts/engaging/04_merge_rank.sh
 done
 
-# 5. Extract literature (array per methodology)
+# ── 5. Extract literature (all 6) ─────────────────────────
 for m in amine_absorption membrane_separation calcium_looping oxyfuel_combustion cryogenic_capture mineralization; do
-  METHODOLOGY=$m sbatch scripts/engaging/05_extract_array.sh
+  sbatch --export=ALL,METHODOLOGY="$m" scripts/engaging/05_extract_array.sh
 done
+# wait until arrays finish
 
-# 6. Merge literature extractions (after extract arrays complete)
+# ── 6. Merge literature extractions ────────────────────────
 for m in amine_absorption membrane_separation calcium_looping oxyfuel_combustion cryogenic_capture mineralization; do
   METHODOLOGY=$m bash scripts/engaging/06_merge_extract.sh
 done
 
-# 7. Internet search + web extraction (requires TAVILY_API_KEY)
+# ── 7. Internet search + web extraction ───────────────────
 bash scripts/engaging/submit_all_web.sh
-# Or one methodology:
-# METHODOLOGY=amine_absorption sbatch scripts/engaging/07_web_extract.sh
+# wait until jobs finish
 
-# 8. Export CSVs (literature + web)
+# ── 8. Export CSVs (literature + web) ─────────────────────
 for m in amine_absorption membrane_separation calcium_looping oxyfuel_combustion cryogenic_capture mineralization; do
   METHODOLOGY=$m bash scripts/engaging/08_export_csv.sh
 done
@@ -152,7 +181,8 @@ done
 From your laptop:
 
 ```bash
-scp engaging:~/concrete_sustainability_urop/outputs/carbon_capture/csv/*.csv ./local_results/
+mkdir -p ./local_results
+scp engaging:/home/rohan931/urop/concrete-sustainability-UROP/outputs/carbon_capture/csv/*.csv ./local_results/
 ```
 
 ## Output layout

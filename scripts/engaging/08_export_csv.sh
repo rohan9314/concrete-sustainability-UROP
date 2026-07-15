@@ -3,7 +3,8 @@
 # Run AFTER merge-extract and web extraction.
 set -euo pipefail
 
-REPO_ROOT="${REPO_ROOT:-$HOME/concrete_sustainability_urop}"
+_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="${REPO_ROOT:-$(cd "$_SCRIPT_DIR/../.." && pwd)}"
 cd "$REPO_ROOT"
 
 export OUTPUT_DIR="${OUTPUT_DIR:-$REPO_ROOT/outputs}"
@@ -20,7 +21,7 @@ fi
 
 if [[ ! -f "$WEB" ]]; then
   echo "WARNING: Web results not found at $WEB" >&2
-  echo "Run: METHODOLOGY=$METHODOLOGY sbatch scripts/engaging/07_web_extract.sh" >&2
+  echo "Run: METHODOLOGY=$METHODOLOGY sbatch --export=ALL,METHODOLOGY=$METHODOLOGY scripts/engaging/07_web_extract.sh" >&2
   echo "Exporting literature-only CSV for now." >&2
 fi
 

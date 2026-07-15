@@ -3,7 +3,8 @@
 # Run AFTER extract array jobs complete, BEFORE web extraction.
 set -euo pipefail
 
-REPO_ROOT="${REPO_ROOT:-$HOME/concrete_sustainability_urop}"
+_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="${REPO_ROOT:-$(cd "$_SCRIPT_DIR/../.." && pwd)}"
 cd "$REPO_ROOT"
 
 export OUTPUT_DIR="${OUTPUT_DIR:-$REPO_ROOT/outputs}"

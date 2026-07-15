@@ -10,13 +10,14 @@
 
 set -euo pipefail
 
-REPO_ROOT="${REPO_ROOT:-$HOME/concrete_sustainability_urop}"
+_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="${REPO_ROOT:-$(cd "$_SCRIPT_DIR/../.." && pwd)}"
 cd "$REPO_ROOT"
 
 module load python/3.11 2>/dev/null || true
 python -m pip install --user -q -r requirements-screening.txt
 
-export PICKLE_PATH="${PICKLE_PATH:-$HOME/filtered_records_rohan.pkl}"
+export PICKLE_PATH="${PICKLE_PATH:-$REPO_ROOT/filtered_records_rohan.pkl}"
 export OUTPUT_DIR="${OUTPUT_DIR:-$REPO_ROOT/outputs}"
 
 METHODOLOGY="${METHODOLOGY:?Set METHODOLOGY e.g. amine_absorption}"

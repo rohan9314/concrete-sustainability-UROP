@@ -1,5 +1,5 @@
 #!/bin/bash
-# MIT Engaging / SLURM — extract 26-question results for global top-N papers
+# MIT Engaging / SLURM — literature extraction for global top-N papers
 #SBATCH --job-name=ccs-extract
 #SBATCH --output=logs/ccs-extract-%A_%a.out
 #SBATCH --array=0-9
@@ -9,13 +9,14 @@
 
 set -euo pipefail
 
-REPO_ROOT="${REPO_ROOT:-$HOME/concrete_sustainability_urop}"
+_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="${REPO_ROOT:-$(cd "$_SCRIPT_DIR/../.." && pwd)}"
 cd "$REPO_ROOT"
 
 module load python/3.11 2>/dev/null || true
 python -m pip install --user -q -r requirements-screening.txt
 
-export PICKLE_PATH="${PICKLE_PATH:-$HOME/filtered_records_rohan.pkl}"
+export PICKLE_PATH="${PICKLE_PATH:-$REPO_ROOT/filtered_records_rohan.pkl}"
 export OPENAI_API_KEY="${OPENAI_API_KEY:?Set OPENAI_API_KEY}"
 export EXTRACTION_CONCURRENCY="${EXTRACTION_CONCURRENCY:-4}"
 export OUTPUT_DIR="${OUTPUT_DIR:-$REPO_ROOT/outputs}"
@@ -27,7 +28,7 @@ RANKED="${OUTPUT_DIR}/carbon_capture/ranked/${METHODOLOGY}_final.jsonl"
 
 if [[ ! -f "$RANKED" ]]; then
   echo "ERROR: Ranked list not found: $RANKED" >&2
-  echo "Set OUTPUT_DIR to where merge-rank wrote files (often not under REPO_ROOT)." >&2
+  echo "Set OUTPUT_DIR to where merge-rank wrote files." >&2
   exit 1
 fi
 
