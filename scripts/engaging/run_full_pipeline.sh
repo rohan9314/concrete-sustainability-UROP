@@ -105,6 +105,13 @@ submit_login() {
     --wrap="cd \"$REPO_ROOT\" && $cmd"
 }
 
+# Safe under `set -u` when the array is empty (bash treats "${arr[@]}" as unbound).
+dep_flags() {
+  if [[ -n "${prev_dep:-}" ]]; then
+    printf '%s\n' "--dependency=${prev_dep}"
+  fi
+}
+
 join_deps() {
   # join_deps jobid [jobid...] -> afterok:A:B:C
   local first=1
@@ -147,11 +154,10 @@ fi
 
 # ── 2. Merge screening ─────────────────────────────────────
 if [[ "$START_FROM" -le 2 && "$SKIP_SCREEN" != "1" ]]; then
-  dep_args=()
-  [[ -n "$prev_dep" ]] && dep_args=(--dependency="$prev_dep")
+  mapfile -t dep_args < <(dep_flags)
   merge_screen_job=$(submit_login ccs-merge-screen \
     "bash scripts/engaging/02_merge_screening.sh" \
-    "${dep_args[@]}")
+    ${dep_args[@]+"${dep_args[@]}"})
   echo "2 merge-screen -> $merge_screen_job"
   prev_dep=$(join_deps "$merge_screen_job")
 else
@@ -161,12 +167,11 @@ fi
 # ── 3. Retrieve (×6) ───────────────────────────────────────
 declare -a retrieve_jobs=()
 if [[ "$START_FROM" -le 3 ]]; then
-  dep_args=()
-  [[ -n "$prev_dep" ]] && dep_args=(--dependency="$prev_dep")
+  mapfile -t dep_args < <(dep_flags)
   for m in "${METHODS[@]}"; do
     job=$(submit "$SCRIPT_DIR/03_retrieve_array.sh" \
       "EXPORT_OVERRIDE=${COMMON_EXPORT},METHODOLOGY=$m" \
-      "${dep_args[@]}")
+      ${dep_args[@]+"${dep_args[@]}"})
     retrieve_jobs+=("$job")
     echo "3 retrieve     -> $job ($m)"
   done
@@ -178,12 +183,11 @@ fi
 # ── 4. Merge-rank (×6) ─────────────────────────────────────
 declare -a merge_rank_jobs=()
 if [[ "$START_FROM" -le 4 ]]; then
-  dep_args=()
-  [[ -n "$prev_dep" ]] && dep_args=(--dependency="$prev_dep")
+  mapfile -t dep_args < <(dep_flags)
   for m in "${METHODS[@]}"; do
     job=$(submit_login "ccs-merge-rank-$m" \
       "METHODOLOGY=$m bash scripts/engaging/04_merge_rank.sh" \
-      "${dep_args[@]}")
+      ${dep_args[@]+"${dep_args[@]}"})
     merge_rank_jobs+=("$job")
     echo "4 merge-rank   -> $job ($m)"
   done
@@ -195,12 +199,11 @@ fi
 # ── 5. Extract literature (×6) ─────────────────────────────
 declare -a extract_jobs=()
 if [[ "$START_FROM" -le 5 ]]; then
-  dep_args=()
-  [[ -n "$prev_dep" ]] && dep_args=(--dependency="$prev_dep")
+  mapfile -t dep_args < <(dep_flags)
   for m in "${METHODS[@]}"; do
     job=$(submit "$SCRIPT_DIR/05_extract_array.sh" \
       "EXPORT_OVERRIDE=${COMMON_EXPORT},METHODOLOGY=$m" \
-      "${dep_args[@]}")
+      ${dep_args[@]+"${dep_args[@]}"})
     extract_jobs+=("$job")
     echo "5 extract      -> $job ($m)"
   done
@@ -212,12 +215,11 @@ fi
 # ── 6. Merge extract (×6) ──────────────────────────────────
 declare -a merge_extract_jobs=()
 if [[ "$START_FROM" -le 6 ]]; then
-  dep_args=()
-  [[ -n "$prev_dep" ]] && dep_args=(--dependency="$prev_dep")
+  mapfile -t dep_args < <(dep_flags)
   for m in "${METHODS[@]}"; do
     job=$(submit_login "ccs-merge-extract-$m" \
       "METHODOLOGY=$m bash scripts/engaging/06_merge_extract.sh" \
-      "${dep_args[@]}")
+      ${dep_args[@]+"${dep_args[@]}"})
     merge_extract_jobs+=("$job")
     echo "6 merge-extract-> $job ($m)"
   done
@@ -229,12 +231,11 @@ fi
 # ── 7. Web (×6) ────────────────────────────────────────────
 declare -a web_jobs=()
 if [[ "$START_FROM" -le 7 && "$SKIP_WEB" != "1" ]]; then
-  dep_args=()
-  [[ -n "$prev_dep" ]] && dep_args=(--dependency="$prev_dep")
+  mapfile -t dep_args < <(dep_flags)
   for m in "${METHODS[@]}"; do
     job=$(submit "$SCRIPT_DIR/07_web_extract.sh" \
       "EXPORT_OVERRIDE=${COMMON_EXPORT},METHODOLOGY=$m" \
-      "${dep_args[@]}")
+      ${dep_args[@]+"${dep_args[@]}"})
     web_jobs+=("$job")
     echo "7 web          -> $job ($m)"
   done
@@ -245,12 +246,11 @@ fi
 
 # ── 8. Export CSV (×6) ─────────────────────────────────────
 if [[ "$START_FROM" -le 8 ]]; then
-  dep_args=()
-  [[ -n "$prev_dep" ]] && dep_args=(--dependency="$prev_dep")
+  mapfile -t dep_args < <(dep_flags)
   for m in "${METHODS[@]}"; do
     job=$(submit_login "ccs-export-$m" \
       "METHODOLOGY=$m bash scripts/engaging/08_export_csv.sh" \
-      "${dep_args[@]}")
+      ${dep_args[@]+"${dep_args[@]}"})
     echo "8 export       -> $job ($m)"
   done
 else
