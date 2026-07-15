@@ -29,17 +29,17 @@ from pipeline.year_utils import normalize_publication_year
 load_dotenv()
 logger = logging.getLogger(__name__)
 
-SCREENING_PROMPT_VERSION = "ccs_abstract_screening_v1"
+SCREENING_PROMPT_VERSION = "ccs_abstract_screening_v2"
 
-SCREENING_SYSTEM_PROMPT = f"""You screen scientific papers for relevance to carbon capture and storage (CCS)
-technologies applied to cement production or cement kiln emissions.
+SCREENING_SYSTEM_PROMPT = f"""You screen scientific papers for relevance to carbon capture, storage,
+utilization, and mineralization technologies for cement and concrete systems.
 
 You receive ONLY a paper title and abstract. You do NOT have access to the full paper text.
 Base every decision strictly on the title and abstract provided.
 Do not infer details that are not supported by the title or abstract.
 
-Classify whether the paper is relevant to cement/concrete CCS decarbonization and which CCS
-subpaths apply. A paper may match multiple subpaths.
+Classify whether the paper is relevant to cement/concrete carbon-capture decarbonization and
+which CCS subpaths apply. A paper may match multiple subpaths.
 
 Allowed subpath identifiers (use exactly these strings):
 {json.dumps(CCS_SUBPATHS)}
@@ -56,10 +56,17 @@ Return valid JSON only with this schema:
 }}
 
 Rules:
-- is_relevant=true only if the paper discusses CCS capture technology for cement, cement kilns,
-  clinker production, or cement plant CO2 emissions (not generic concrete durability alone).
+- is_relevant=true if the paper discusses any of:
+  (a) CCS capture technology for cement, cement kilns, clinker production, or cement-plant CO2
+      emissions; OR
+  (b) carbon mineralization / mineral carbonation; CO2 curing / carbonation curing;
+      CO2 sequestration in cement or concrete; or CO2 utilization through aggregates, binders,
+      or concrete products.
+- Do NOT mark relevant for generic concrete durability/strength papers with no CO2 capture,
+  mineralization, carbonation curing, or CO2 utilization content.
 - If is_relevant=false, relevant_subpaths must be [].
-- If is_relevant=true, include every matching subpath from the allowed list.
+- If is_relevant=true, include every matching subpath from the allowed list
+  (including "mineralization" when applicable).
 - confidence reflects how clearly the title/abstract support the classification.
 - reason must state it is based on the title and abstract only.
 """
@@ -97,6 +104,7 @@ def _keyword_screen(record: dict, index: int) -> AbstractScreeningResult:
         "membrane separation": "membrane_separation",
         "calcium looping": "calcium_looping",
         "direct separation": "direct_separation",
+        "mineralization": "mineralization",
     }
 
     for tech_name, subpath in slug_map.items():
@@ -106,7 +114,22 @@ def _keyword_screen(record: dict, index: int) -> AbstractScreeningResult:
             matched_subpaths.append(subpath)
             best_score = max(best_score, result.query_score)
 
-    cement_terms = ("cement", "kiln", "clinker", "carbon capture", "ccs", "co2")
+    mineralization_terms = (
+        "mineralization",
+        "mineral carbonation",
+        "carbonation curing",
+        "co2 curing",
+        "co₂ curing",
+        "carbon sequestration",
+        "co2 utilization",
+        "co₂ utilization",
+    )
+    if any(term in screening for term in mineralization_terms):
+        if "mineralization" not in matched_subpaths:
+            matched_subpaths.append("mineralization")
+        best_score = max(best_score, 6.0)
+
+    cement_terms = ("cement", "kiln", "clinker", "carbon capture", "ccs", "co2", "concrete")
     has_cement = any(term in screening for term in cement_terms)
     is_relevant = bool(matched_subpaths) and has_cement
     confidence = min(1.0, best_score / 15.0) if is_relevant else 0.0

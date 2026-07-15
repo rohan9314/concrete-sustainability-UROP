@@ -20,7 +20,6 @@ cd "$REPO_ROOT"
 
 export REPO_ROOT
 export OUTPUT_DIR="${OUTPUT_DIR:-$REPO_ROOT/outputs}"
-export PICKLE_PATH="${PICKLE_PATH:-$REPO_ROOT/filtered_records_rohan.pkl}"
 export EXTRACTION_CONCURRENCY="${EXTRACTION_CONCURRENCY:-4}"
 export TOP_N_SOURCES="${TOP_N_SOURCES:-50}"
 export WEB_LIMIT="${WEB_LIMIT:-50}"
@@ -40,6 +39,23 @@ METHODS=(
 )
 
 mkdir -p logs "$OUTPUT_DIR"
+
+if [[ -z "${PICKLE_PATH:-}" ]]; then
+  echo "ERROR: PICKLE_PATH is required." >&2
+  echo "Export the absolute path to your corpus pickle (not assumed inside the repo), e.g.:" >&2
+  echo "  export PICKLE_PATH=/absolute/path/to/filtered_records_rohan.pkl" >&2
+  exit 1
+fi
+export PICKLE_PATH
+if [[ ! -f "$PICKLE_PATH" ]]; then
+  echo "ERROR: PICKLE_PATH does not exist or is not a file: $PICKLE_PATH" >&2
+  exit 1
+fi
+
+# Fail fast if the pickle cannot be loaded (encoding/path issues).
+python pipeline/run_carbon_capture_cluster.py plan --shard-size "$SHARD_SIZE" --input "$PICKLE_PATH" >/tmp/ccs_plan_$$.txt
+cat /tmp/ccs_plan_$$.txt
+rm -f /tmp/ccs_plan_$$.txt
 
 if [[ -z "${OPENAI_API_KEY:-}" && "$START_FROM" -le 5 ]]; then
   echo "ERROR: OPENAI_API_KEY is required (screen/extract/web stages)." >&2

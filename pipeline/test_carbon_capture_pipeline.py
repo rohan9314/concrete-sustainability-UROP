@@ -322,6 +322,18 @@ def test_legacy_field_mapping() -> None:
     assert row["cost_impact"] == "260 million RMB"
 
 
+def test_mineralization_screening_subpath_mapped() -> None:
+    from pipeline.carbon_capture_config import get_methodology
+    from pipeline.screening import CCS_SUBPATHS, normalize_subpaths
+
+    assert "mineralization" in CCS_SUBPATHS
+    methodology = get_methodology("mineralization")
+    assert methodology.screening_subpath == "mineralization"
+    assert normalize_subpaths(["mineralization", "carbonation curing", "CO2 curing"]) == [
+        "mineralization",
+    ]
+
+
 def test_canonical_csv_headers_exact() -> None:
     assert list(CANONICAL_FIELDS) == [
         "category",
@@ -429,6 +441,7 @@ def main() -> int:
         test_run_config_effective_limits,
         test_all_methodologies_have_keywords,
         test_legacy_field_mapping,
+        test_mineralization_screening_subpath_mapped,
         test_canonical_csv_headers_exact,
         test_cluster_web_stage_writes_web_rows,
     ]

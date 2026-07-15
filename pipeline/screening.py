@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from pipeline.schema import FilteredPaper, NOT_REPORTED
 
-# First target taxonomy: CCS capture subpaths for cement/concrete applications.
+# CCS capture / utilization subpaths for cement and concrete applications.
 CCS_SUBPATHS: list[str] = [
     "calcium_looping",
     "chemical_absorption",
@@ -18,15 +18,44 @@ CCS_SUBPATHS: list[str] = [
     "oxy_fuel_combustion",
     "membrane_separation",
     "direct_separation",
+    "mineralization",
 ]
 
 CCS_SUBPATH_DESCRIPTIONS: dict[str, str] = {
-    "calcium_looping": "CaL / CaO-CaCO3 looping, calcination-carbonation cycles for cement kiln CO2 capture",
-    "chemical_absorption": "Amine/solvent absorption, post-combustion capture for cement flue gas",
-    "cryogenic_processes": "Cryogenic or low-temperature CO2 separation / liquefaction",
-    "oxy_fuel_combustion": "Oxy-fuel or oxygen-enriched combustion with high-CO2 flue gas",
-    "membrane_separation": "Membrane-based CO2 or gas separation for cement applications",
-    "direct_separation": "Direct/indirect calciner separation, LEILAC, separated calcination CO2 capture",
+    "calcium_looping": (
+        "CaL / CaO-CaCO3 looping, calcination-carbonation cycles for cement kiln CO2 capture"
+    ),
+    "chemical_absorption": (
+        "Amine/solvent absorption, post-combustion capture for cement flue gas"
+    ),
+    "cryogenic_processes": (
+        "Cryogenic or low-temperature CO2 separation / liquefaction"
+    ),
+    "oxy_fuel_combustion": (
+        "Oxy-fuel or oxygen-enriched combustion with high-CO2 flue gas"
+    ),
+    "membrane_separation": (
+        "Membrane-based CO2 or gas separation for cement applications"
+    ),
+    "direct_separation": (
+        "Direct/indirect calciner separation, LEILAC, separated calcination CO2 capture"
+    ),
+    "mineralization": (
+        "Carbon mineralization / mineral carbonation; CO2 curing and carbonation curing; "
+        "CO2 sequestration in cement or concrete; CO2 utilization via aggregates, binders, "
+        "or concrete products"
+    ),
+}
+
+# Normalize common model aliases onto canonical subpath IDs.
+SUBPATH_ALIASES: dict[str, str] = {
+    "mineral_carbonation": "mineralization",
+    "carbon_mineralization": "mineralization",
+    "carbonation_curing": "mineralization",
+    "co2_curing": "mineralization",
+    "co2_mineralization": "mineralization",
+    "mineral_sequestration": "mineralization",
+    "carbonation_based_capture": "mineralization",
 }
 
 
@@ -61,6 +90,7 @@ def normalize_subpaths(raw: object) -> list[str]:
     normalized: list[str] = []
     for item in raw:
         key = str(item).strip().lower().replace("-", "_").replace(" ", "_")
+        key = SUBPATH_ALIASES.get(key, key)
         if key in CCS_SUBPATHS and key not in normalized:
             normalized.append(key)
     return normalized

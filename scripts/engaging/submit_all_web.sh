@@ -8,6 +8,6 @@ REPO_ROOT="${REPO_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
 
 for METHODOLOGY in amine_absorption membrane_separation calcium_looping oxyfuel_combustion cryogenic_capture mineralization; do
   echo "Submitting web extraction for $METHODOLOGY"
-  sbatch --export=ALL,METHODOLOGY="$METHODOLOGY",REPO_ROOT="$REPO_ROOT",OUTPUT_DIR="${OUTPUT_DIR:-$REPO_ROOT/outputs}",PICKLE_PATH="${PICKLE_PATH:-$REPO_ROOT/filtered_records_rohan.pkl}",OPENAI_API_KEY="${OPENAI_API_KEY:-}",TAVILY_API_KEY="${TAVILY_API_KEY:-}" \
+  sbatch --export=ALL,METHODOLOGY="$METHODOLOGY",REPO_ROOT="$REPO_ROOT",OUTPUT_DIR="${OUTPUT_DIR:-$REPO_ROOT/outputs}",OPENAI_API_KEY="${OPENAI_API_KEY:-}",TAVILY_API_KEY="${TAVILY_API_KEY:-}" \
     "$SCRIPT_DIR/07_web_extract.sh"
 done

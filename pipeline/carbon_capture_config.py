@@ -192,7 +192,7 @@ CARBON_CAPTURE_METHODOLOGIES: dict[str, CarbonCaptureMethodology] = {
             "mineral carbonation mineralization cement concrete CO2 sequestration "
             "carbonation-based capture"
         ),
-        screening_subpath=None,
+        screening_subpath="mineralization",
     ),
 }
 

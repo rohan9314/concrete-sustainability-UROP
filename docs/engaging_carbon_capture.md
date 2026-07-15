@@ -82,7 +82,7 @@ Default cluster checkout:
 REPO_ROOT=/home/rohan931/urop/concrete-sustainability-UROP
 scripts  → $REPO_ROOT/scripts/engaging/
 outputs  → $REPO_ROOT/outputs/
-pickle   → $REPO_ROOT/filtered_records_rohan.pkl
+pickle   → set via PICKLE_PATH (absolute path; NOT assumed inside the repo)
 ```
 
 ```bash
@@ -92,7 +92,8 @@ git pull origin main
 python -m pip install --user -r requirements-screening.txt
 
 export REPO_ROOT=/home/rohan931/urop/concrete-sustainability-UROP
-export PICKLE_PATH=$REPO_ROOT/filtered_records_rohan.pkl
+# Required: absolute path to the corpus pickle (do not assume it lives in the repo)
+export PICKLE_PATH=/absolute/path/to/filtered_records_rohan.pkl
 export OPENAI_API_KEY=sk-...          # required for screen / extract / web
 export TAVILY_API_KEY=tvly-...        # required for web search
 export OUTPUT_DIR=$REPO_ROOT/outputs
@@ -103,18 +104,19 @@ export SHARD_SIZE=10000
 
 mkdir -p logs
 
-# Plan shards, then set #SBATCH --array=0-N in scripts to match
-python pipeline/run_carbon_capture_cluster.py plan --shard-size 10000
+# Validates PICKLE_PATH exists + loads, then prints shard plan
+python pipeline/run_carbon_capture_cluster.py plan --shard-size 10000 --input "$PICKLE_PATH"
 # Example: 159372 records → 16 shards (tasks 0–15)
 ```
 
 Scripts resolve `REPO_ROOT` from their own location when unset, but exporting
-`REPO_ROOT` / `OUTPUT_DIR` / API keys is still recommended (especially for SLURM).
+`REPO_ROOT` / `OUTPUT_DIR` / `PICKLE_PATH` / API keys is required for SLURM.
 
 ## Run all stages automatically (recommended)
 
 ```bash
 cd /home/rohan931/urop/concrete-sustainability-UROP
+export PICKLE_PATH=/absolute/path/to/filtered_records_rohan.pkl
 export OPENAI_API_KEY=sk-...
 export TAVILY_API_KEY=tvly-...
 

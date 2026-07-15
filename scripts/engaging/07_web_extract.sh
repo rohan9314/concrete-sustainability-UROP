@@ -16,7 +16,7 @@ cd "$REPO_ROOT"
 module load python/3.11 2>/dev/null || true
 python -m pip install --user -q -r requirements-screening.txt
 
-export PICKLE_PATH="${PICKLE_PATH:-$REPO_ROOT/filtered_records_rohan.pkl}"
+# Web jobs do not load the paper pickle; keep PICKLE_PATH if already set for consistency.
 export OPENAI_API_KEY="${OPENAI_API_KEY:?Set OPENAI_API_KEY}"
 export TAVILY_API_KEY="${TAVILY_API_KEY:?Set TAVILY_API_KEY}"
 export EXTRACTION_CONCURRENCY="${EXTRACTION_CONCURRENCY:-4}"

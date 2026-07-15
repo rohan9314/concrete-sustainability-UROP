@@ -17,7 +17,8 @@ cd "$REPO_ROOT"
 module load python/3.11 2>/dev/null || true
 python -m pip install --user -q -r requirements-screening.txt
 
-export PICKLE_PATH="${PICKLE_PATH:-$REPO_ROOT/filtered_records_rohan.pkl}"
+: "${PICKLE_PATH:?Set PICKLE_PATH to the absolute corpus pickle path (not assumed inside the repo)}"
+export PICKLE_PATH
 export OUTPUT_DIR="${OUTPUT_DIR:-$REPO_ROOT/outputs}"
 
 METHODOLOGY="${METHODOLOGY:?Set METHODOLOGY e.g. amine_absorption}"
@@ -25,11 +26,13 @@ SHARD_SIZE="${SHARD_SIZE:-10000}"
 TASK_ID="${SLURM_ARRAY_TASK_ID:-0}"
 SCREENING="${SCREENING:-${OUTPUT_DIR}/carbon_capture/screening_merged.jsonl}"
 
+echo "Using PICKLE_PATH=$PICKLE_PATH"
 python pipeline/run_carbon_capture_cluster.py retrieve \
   --methodology "$METHODOLOGY" \
   --task-id "$TASK_ID" \
   --shard-size "$SHARD_SIZE" \
   --screening-results "$SCREENING" \
+  --input "$PICKLE_PATH" \
   --cluster-dir carbon_capture
 
 echo "Retrieve shard $TASK_ID complete for $METHODOLOGY"

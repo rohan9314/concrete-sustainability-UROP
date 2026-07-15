@@ -57,6 +57,7 @@ from pipeline.carbon_capture_stages import (
 )
 from pipeline.cluster_shards import plan_corpus_shards, shard_for_array_task
 from pipeline.config import get_output_dir, get_top_n_sources
+from pipeline.corpus_loader import PaperDatabaseLoadError, validate_pickle_corpus
 
 logging.basicConfig(
     level=logging.INFO,
@@ -185,7 +186,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def _run_screen(args: argparse.Namespace) -> int:
     task_id = _task_id_from_env(args)
-    total = corpus_record_count(args.input or None)
+    _, total = validate_pickle_corpus(args.input or None)
     shards = plan_corpus_shards(total, args.shard_size)
     shard = shard_for_array_task(shards, task_id)
     cluster_dir = _cluster_root(args.cluster_dir)
@@ -228,7 +229,7 @@ def _run_screen(args: argparse.Namespace) -> int:
 
 
 def _run_plan(args: argparse.Namespace) -> int:
-    total = corpus_record_count(args.input or None)
+    _, total = validate_pickle_corpus(args.input or None)
     shards = plan_corpus_shards(total, args.shard_size)
     print(f"Corpus records: {total}")
     print(f"Shard size: {args.shard_size}")
@@ -408,7 +409,7 @@ def main() -> int:
             )
             return 0
 
-    except (ValueError, FileNotFoundError, KeyError) as exc:
+    except (ValueError, FileNotFoundError, KeyError, PaperDatabaseLoadError) as exc:
         logger.error("%s", exc)
         return 1
 
