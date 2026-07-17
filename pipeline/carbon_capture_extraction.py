@@ -225,7 +225,16 @@ def _error_row(
     result_id: str,
     paper: RankedPaper | None,
     message: str,
+    source_title: str | None = None,
+    source_url: str | None = None,
 ) -> CarbonCaptureRow:
+    if source_title is None:
+        source_title = paper.title if paper else NA
+    if source_url is None:
+        if paper is None:
+            source_url = NA
+        else:
+            source_url = paper.url or (f"https://doi.org/{paper.doi}" if paper.doi else NA)
     row = CarbonCaptureRow(
         record_id=f"{result_id}:0",
         result_id=result_id,
@@ -237,10 +246,8 @@ def _error_row(
         category=methodology.category,
         subcategory=methodology.subcategory,
         source_type="Literature" if source_origin == "literature" else "Web",
-        source_title=paper.title if paper else NA,
-        source_url_or_citation=(
-            paper.url or (f"https://doi.org/{paper.doi}" if paper and paper.doi else NA)
-        ),
+        source_title=source_title,
+        source_url_or_citation=source_url,
         confidence=NA,
         extraction_error=message,
     )
@@ -409,6 +416,8 @@ def extract_web_sources_parallel(
                     result_id=f"{methodology.slug}:web:error",
                     paper=None,
                     message=item.error or "Web extraction worker failed",
+                    source_title=str(source.get("title") or NA),
+                    source_url=str(source.get("url") or NA),
                 ),
             )
     return rows
