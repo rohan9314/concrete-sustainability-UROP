@@ -22,6 +22,7 @@ _SLUG_TO_LEGACY_TECHNOLOGY: dict[str, str] = {
     "calcium_looping": "calcium looping",
     "oxyfuel_combustion": "oxy-fuel combustion",
     "cryogenic_capture": "cryogenic processes",
+    "direct_separation": "direct separation",
 }
 
 

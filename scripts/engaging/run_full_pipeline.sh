@@ -36,7 +36,13 @@ METHODS=(
   oxyfuel_combustion
   cryogenic_capture
   mineralization
+  direct_separation
 )
+
+# Optional: run a single methodology, e.g. METHODOLOGY=direct_separation
+if [[ -n "${METHODOLOGY:-}" ]]; then
+  METHODS=("$METHODOLOGY")
+fi
 
 mkdir -p logs "$OUTPUT_DIR"
 
@@ -164,7 +170,7 @@ else
   echo "2 merge-screen -> skipped"
 fi
 
-# ── 3. Retrieve (×6) ───────────────────────────────────────
+# ── 3. Retrieve (per methodology) ───────────────────────────
 declare -a retrieve_jobs=()
 if [[ "$START_FROM" -le 3 ]]; then
   mapfile -t dep_args < <(dep_flags)
@@ -180,7 +186,7 @@ else
   echo "3 retrieve     -> skipped"
 fi
 
-# ── 4. Merge-rank (×6) ─────────────────────────────────────
+# ── 4. Merge-rank (per methodology) ─────────────────────────
 declare -a merge_rank_jobs=()
 if [[ "$START_FROM" -le 4 ]]; then
   mapfile -t dep_args < <(dep_flags)
@@ -196,7 +202,7 @@ else
   echo "4 merge-rank   -> skipped"
 fi
 
-# ── 5. Extract literature (×6) ─────────────────────────────
+# ── 5. Extract literature (per methodology) ─────────────────
 declare -a extract_jobs=()
 if [[ "$START_FROM" -le 5 ]]; then
   mapfile -t dep_args < <(dep_flags)
@@ -212,7 +218,7 @@ else
   echo "5 extract      -> skipped"
 fi
 
-# ── 6. Merge extract (×6) ──────────────────────────────────
+# ── 6. Merge extract (per methodology) ──────────────────────
 declare -a merge_extract_jobs=()
 if [[ "$START_FROM" -le 6 ]]; then
   mapfile -t dep_args < <(dep_flags)
@@ -228,7 +234,7 @@ else
   echo "6 merge-extract-> skipped"
 fi
 
-# ── 7. Web (×6) ────────────────────────────────────────────
+# ── 7. Web (per methodology) ────────────────────────────────
 declare -a web_jobs=()
 if [[ "$START_FROM" -le 7 && "$SKIP_WEB" != "1" ]]; then
   mapfile -t dep_args < <(dep_flags)
@@ -244,7 +250,7 @@ else
   echo "7 web          -> skipped"
 fi
 
-# ── 8. Export CSV (×6) ─────────────────────────────────────
+# ── 8. Export CSV (per methodology) ─────────────────────────
 if [[ "$START_FROM" -le 8 ]]; then
   mapfile -t dep_args < <(dep_flags)
   for m in "${METHODS[@]}"; do

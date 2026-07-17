@@ -79,10 +79,11 @@ def _sample_literature_row(**overrides) -> CarbonCaptureRow:
     return CarbonCaptureRow(**base)
 
 
-def test_six_methodologies_configured() -> None:
+def test_seven_methodologies_configured() -> None:
     slugs = list_methodology_slugs()
-    assert len(slugs) == 6
+    assert len(slugs) == 7
     assert set(slugs) == set(CARBON_CAPTURE_METHODOLOGIES.keys())
+    assert "direct_separation" in slugs
 
 
 def test_global_output_filenames() -> None:
@@ -334,6 +335,123 @@ def test_mineralization_screening_subpath_mapped() -> None:
     ]
 
 
+def test_direct_separation_screening_subpath_mapped() -> None:
+    from pipeline.screening import CCS_SUBPATHS
+
+    assert "direct_separation" in CCS_SUBPATHS
+    methodology = get_methodology("direct_separation")
+    assert methodology.screening_subpath == "direct_separation"
+    assert methodology.subcategory == "Direct separation"
+    assert resolve_methodology_slug("Direct separation") == "direct_separation"
+    assert resolve_methodology_slug("direct_separation") == "direct_separation"
+
+
+def test_direct_separation_retrieval_query_context() -> None:
+    from pipeline.carbon_capture_retrieval import build_methodology_query_context
+
+    methodology = get_methodology("direct_separation")
+    context = build_methodology_query_context(methodology)
+    assert context.query == methodology.retrieval_query
+    phrases = {phrase for phrase, _, _ in context.match_phrases}
+    for term in (
+        "direct separation",
+        "leilac",
+        "calix",
+        "indirectly heated calciner",
+        "indirect calcination",
+        "pure process co2 stream",
+    ):
+        assert term in phrases
+    # Other CCS methodologies must not be treated as synonyms.
+    for foreign in (
+        "calcium looping",
+        "oxyfuel",
+        "amine absorption",
+        "membrane separation",
+        "cryogenic",
+        "mineralization",
+    ):
+        assert foreign not in phrases
+
+
+def test_direct_separation_canonical_extraction_schema() -> None:
+    from pipeline.carbon_capture_prompts import SYSTEM_PROMPT, build_literature_extraction_prompt
+    from pipeline.carbon_capture_schema import CANONICAL_FIELDS
+
+    methodology = get_methodology("direct_separation")
+    prompt = build_literature_extraction_prompt(
+        methodology_name=methodology.display_name,
+        methodology_subcategory=methodology.subcategory,
+        source_content="LEILAC pilot at Lixhe uses indirect calcination.",
+    )
+    for field in CANONICAL_FIELDS:
+        assert field in SYSTEM_PROMPT
+    assert "Direct separation" in prompt
+    assert "one record per project" in SYSTEM_PROMPT.lower() or (
+        "ONE project" in SYSTEM_PROMPT
+    )
+
+    rows = expand_record_to_rows(
+        {
+            "category": "Carbon Capture",
+            "subcategory": methodology.subcategory,
+            "technology_type": "direct separation",
+            "company_or_organization": "Calix / Heidelberg Materials",
+            "project_name": "LEILAC-1 Lixhe",
+            "deployment_stage": "Pilot",
+            "metrics": [
+                {
+                    "metric_dimension": "CO2 Reduction",
+                    "metric_name": "CO2 capture rate",
+                    "metric_value": "95",
+                    "metric_unit": "%",
+                    "metric_boundary": "calciner process emissions",
+                },
+                {
+                    "metric_dimension": "Energy",
+                    "metric_name": "energy penalty",
+                    "metric_value": "1.5",
+                    "metric_unit": "GJ/tCO2",
+                    "metric_boundary": "calciner",
+                },
+            ],
+        },
+    )
+    assert len(rows) == 2
+    assert all(row["project_name"] == "LEILAC-1 Lixhe" for row in rows)
+    assert all(row["subcategory"] == "Direct separation" for row in rows)
+    assert set(rows[0].keys()) >= set(CANONICAL_FIELDS)
+
+
+def test_direct_separation_web_queries_and_export_filenames() -> None:
+    methodology = get_methodology("direct_separation")
+    tech_queries = build_technology_level_queries(methodology.subcategory)
+    assert any("Direct separation" in query for query in tech_queries)
+    followups = build_company_project_queries(
+        company="Calix",
+        technology_type="indirect calcination",
+        project_name="LEILAC",
+    )
+    joined = " ".join(followups)
+    assert "Calix" in joined
+    assert "LEILAC" in joined
+    assert "indirect calcination" in joined
+
+    heidelberg = build_company_project_queries(
+        company="Heidelberg Materials",
+        technology_type="direct separation",
+        project_name="LEILAC Lixhe",
+    )
+    heidelberg_text = " ".join(heidelberg)
+    assert "Heidelberg Materials" in heidelberg_text
+    assert "Lixhe" in heidelberg_text
+
+    assert methodology.answers_filename == "direct_separation_answers.csv"
+    assert methodology.literature_filename == "direct_separation_literature.jsonl"
+    assert methodology.web_filename == "direct_separation_web.jsonl"
+    assert methodology.citations_filename == "direct_separation_citations.csv"
+
+
 def test_canonical_csv_headers_exact() -> None:
     assert list(CANONICAL_FIELDS) == [
         "category",
@@ -426,7 +544,7 @@ def test_cluster_web_stage_writes_web_rows() -> None:
 
 def main() -> int:
     tests = [
-        test_six_methodologies_configured,
+        test_seven_methodologies_configured,
         test_global_output_filenames,
         test_metric_expansion_preserves_project_identity,
         test_missing_values_normalize_to_na,
@@ -442,6 +560,10 @@ def main() -> int:
         test_all_methodologies_have_keywords,
         test_legacy_field_mapping,
         test_mineralization_screening_subpath_mapped,
+        test_direct_separation_screening_subpath_mapped,
+        test_direct_separation_retrieval_query_context,
+        test_direct_separation_canonical_extraction_schema,
+        test_direct_separation_web_queries_and_export_filenames,
         test_canonical_csv_headers_exact,
         test_cluster_web_stage_writes_web_rows,
     ]

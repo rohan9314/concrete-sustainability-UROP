@@ -96,7 +96,7 @@ For local development with the full extraction pipeline, use `backend/requiremen
 
 ### Carbon capture methodology CSV pipeline
 
-Run retrieval and 26-question extraction separately for each of the six carbon capture methodologies. Outputs twelve CSV files under `outputs/carbon_capture/` (answers + citations per methodology):
+Run retrieval and extraction separately for each of the seven carbon capture methodologies. Outputs answers + citations CSVs under `outputs/carbon_capture/` (per methodology):
 
 ```bash
 export PICKLE_PATH=/path/to/your/corpus.pkl
@@ -105,7 +105,7 @@ export OPENAI_API_KEY=your_key_here
 # One methodology
 python pipeline/run_carbon_capture.py --methodology amine_absorption --start 0 --end 5000
 
-# All six methodologies
+# All methodologies
 python pipeline/run_carbon_capture.py --all --start 0 --end 5000 --top-n 25
 
 # Optional: restrict retrieval to Stage 1 screening results
@@ -113,7 +113,7 @@ python pipeline/run_carbon_capture.py --all --start 0 --end 5000 \\
   --screening-results outputs/ccs_abstract_screening_results.jsonl
 ```
 
-Methodology slugs: `amine_absorption`, `membrane_separation`, `calcium_looping`, `oxyfuel_combustion`, `cryogenic_capture`, `mineralization`.
+Methodology slugs: `amine_absorption`, `membrane_separation`, `calcium_looping`, `oxyfuel_combustion`, `cryogenic_capture`, `mineralization`, `direct_separation`.
 
 For **MIT Engaging / SLURM** at full corpus scale, use the distributed runner instead:
 

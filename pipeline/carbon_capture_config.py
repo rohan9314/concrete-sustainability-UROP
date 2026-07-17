@@ -194,6 +194,51 @@ CARBON_CAPTURE_METHODOLOGIES: dict[str, CarbonCaptureMethodology] = {
         ),
         screening_subpath="mineralization",
     ),
+    "direct_separation": CarbonCaptureMethodology(
+        slug="direct_separation",
+        display_name="Direct separation",
+        category="Carbon Capture",
+        subcategory="Direct separation",
+        search_keywords=(
+            "direct separation",
+            "direct process separation",
+            "indirect calcination",
+            "indirectly heated calciner",
+            "externally heated calciner",
+            "pure process CO2 stream",
+            "LEILAC",
+            "Low Emissions Intensity Lime and Cement",
+            "Calix",
+            "calciner separation",
+            "cement calcination CO2 separation",
+            "limestone calcination separation",
+            "process emissions separation",
+            "direct separation reactor",
+        ),
+        synonyms=(
+            "direct separation",
+            "direct process separation",
+            "indirect calcination",
+            "indirectly heated calciner",
+            "externally heated calciner",
+            "pure process co2 stream",
+            "leilac",
+            "low emissions intensity lime and cement",
+            "calix",
+            "calciner separation",
+            "cement calcination co2 separation",
+            "limestone calcination separation",
+            "process emissions separation",
+            "direct separation reactor",
+            "separated calcination",
+            "direct separation calciner",
+        ),
+        retrieval_query=(
+            "direct separation LEILAC indirect calcination cement calciner "
+            "pure process CO2 stream Calix"
+        ),
+        screening_subpath="direct_separation",
+    ),
 }
 
 

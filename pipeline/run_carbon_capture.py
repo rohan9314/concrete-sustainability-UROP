@@ -72,7 +72,7 @@ def _parse_args() -> argparse.Namespace:
     group.add_argument(
         "--all",
         action="store_true",
-        help="Run all six carbon capture methodologies",
+        help="Run all carbon capture methodologies",
     )
     parser.add_argument("--start", type=int, default=0, help="Corpus start index (inclusive)")
     parser.add_argument("--end", type=int, default=5000, help="Corpus end index (exclusive)")

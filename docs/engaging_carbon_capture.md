@@ -37,37 +37,37 @@ Corpus (~159k papers)
         │
         ▼
 ┌───────────────────────────────────────┐
-│ Stage 3: RETRIEVE (array × 6 methods) │  Methodology-specific ranking per shard
+│ Stage 3: RETRIEVE (array × methods)   │  Methodology-specific ranking per shard
 │  → shards/retrieve/{method}/ranked_*  │  No top_n limit at shard level
 └───────────────────────────────────────┘
         │
         ▼
 ┌───────────────────────────────────────┐
-│ Stage 4: MERGE-RANK (login node × 6)  │  Global dedupe + top-N per methodology
+│ Stage 4: MERGE-RANK (login × methods) │  Global dedupe + top-N per methodology
 │  → ranked/{method}_final.jsonl        │
 └───────────────────────────────────────┘
         │
         ▼
 ┌───────────────────────────────────────┐
-│ Stage 5: EXTRACT (array × 6 methods)  │  Literature LLM extraction batches
+│ Stage 5: EXTRACT (array × methods)    │  LLM extraction on global top-N papers
 │  → shards/extract/{method}/extract_*  │
 └───────────────────────────────────────┘
         │
         ▼
 ┌───────────────────────────────────────┐
-│ Stage 6: MERGE-EXTRACT (login × 6)    │  Combine literature extraction shards
+│ Stage 6: MERGE-EXTRACT (login × meth) │  Merge literature extraction shards
 │  → extractions/{method}_merged.jsonl  │
 └───────────────────────────────────────┘
         │
         ▼
 ┌───────────────────────────────────────┐
-│ Stage 7: WEB (job × 6 methods)        │  Tavily internet search + web extraction
-│  → web/{method}_web.jsonl             │  Seeds follow-ups from literature rows
+│ Stage 7: WEB (job × methods)          │  Tavily + LLM web extraction
+│  → web/{method}_web.jsonl             │
 └───────────────────────────────────────┘
         │
         ▼
 ┌───────────────────────────────────────┐
-│ Stage 8: EXPORT-CSV (login × 6)       │  Merge literature + web → answers CSV
+│ Stage 8: EXPORT CSV (login × methods) │  Literature + web → answers CSV
 │  → csv/{method}_answers.csv           │
 │  → csv/{method}_literature.csv        │
 │  → csv/{method}_web.csv               │
@@ -132,6 +132,9 @@ Useful options:
 SKIP_SCREEN=1 bash scripts/engaging/run_full_pipeline.sh   # reuse existing screening
 SKIP_WEB=1 bash scripts/engaging/run_full_pipeline.sh      # literature-only
 START_FROM=5 bash scripts/engaging/run_full_pipeline.sh    # resume at extract
+# Single methodology from stage 3 (reuse screening_merged.jsonl):
+SKIP_SCREEN=1 START_FROM=3 METHODOLOGY=direct_separation \
+  bash scripts/engaging/run_full_pipeline.sh
 ```
 
 ## Run stages manually
@@ -148,23 +151,23 @@ sbatch --export=ALL scripts/engaging/01_screen_array.sh
 # ── 2. Merge screening ────────────────────────────────────
 bash scripts/engaging/02_merge_screening.sh
 
-# ── 3. Retrieve/rank (all 6 methodologies) ────────────────
+# ── 3. Retrieve/rank (all methodologies) ────────────────
 bash scripts/engaging/submit_all_retrieve.sh
 # wait until arrays finish
 
 # ── 4. Global top-N per methodology ───────────────────────
-for m in amine_absorption membrane_separation calcium_looping oxyfuel_combustion cryogenic_capture mineralization; do
+for m in amine_absorption membrane_separation calcium_looping oxyfuel_combustion cryogenic_capture mineralization direct_separation; do
   METHODOLOGY=$m bash scripts/engaging/04_merge_rank.sh
 done
 
-# ── 5. Extract literature (all 6) ─────────────────────────
-for m in amine_absorption membrane_separation calcium_looping oxyfuel_combustion cryogenic_capture mineralization; do
+# ── 5. Extract literature (all methodologies) ─────────────
+for m in amine_absorption membrane_separation calcium_looping oxyfuel_combustion cryogenic_capture mineralization direct_separation; do
   sbatch --export=ALL,METHODOLOGY="$m" scripts/engaging/05_extract_array.sh
 done
 # wait until arrays finish
 
 # ── 6. Merge literature extractions ────────────────────────
-for m in amine_absorption membrane_separation calcium_looping oxyfuel_combustion cryogenic_capture mineralization; do
+for m in amine_absorption membrane_separation calcium_looping oxyfuel_combustion cryogenic_capture mineralization direct_separation; do
   METHODOLOGY=$m bash scripts/engaging/06_merge_extract.sh
 done
 
@@ -173,7 +176,7 @@ bash scripts/engaging/submit_all_web.sh
 # wait until jobs finish
 
 # ── 8. Export CSVs (literature + web) ─────────────────────
-for m in amine_absorption membrane_separation calcium_looping oxyfuel_combustion cryogenic_capture mineralization; do
+for m in amine_absorption membrane_separation calcium_looping oxyfuel_combustion cryogenic_capture mineralization direct_separation; do
   METHODOLOGY=$m bash scripts/engaging/08_export_csv.sh
 done
 ```
@@ -211,7 +214,7 @@ Each answers CSV includes source fields on every row:
 
 ## Cost / efficiency notes
 
-- **Stage 1** is the most expensive (LLM call per paper). Run once; reuse `screening_merged.jsonl` for all six methodologies.
+- **Stage 1** is the most expensive (LLM call per paper). Run once; reuse `screening_merged.jsonl` for all methodologies.
 - **Stage 3** is cheap (keyword ranking only).
 - **Stage 5** only runs on global top-N papers (default 50) per methodology, not the full corpus.
 - **Stage 7** uses Tavily for technology-level queries plus company/project follow-ups seeded from literature rows. Cap with `WEB_LIMIT` (default 50).
