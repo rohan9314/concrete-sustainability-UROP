@@ -122,6 +122,25 @@ python pipeline/run_carbon_capture_cluster.py plan --shard-size 10000
 # See docs/engaging_carbon_capture.md and scripts/engaging/
 ```
 
+### Supplementary Cementitious Materials (SCM) pipeline
+
+Parallel to carbon capture and independently executable. SCM commands never run carbon-capture
+stages or require carbon-capture outputs. See [`docs/scm_workflow.md`](docs/scm_workflow.md)
+("Running SCM Without Running Carbon Capture").
+
+```bash
+export PICKLE_PATH=/path/to/your/corpus.pkl
+export OPENAI_API_KEY=your_key_here
+# optional: export SCM_OUTPUT_ROOT=/path/to/outputs/scm
+
+python -m pipeline.scm run-seed-category --subcategory slag_cement \
+  --test-mode --paper-limit 5 --web-limit 5 --top-n 5
+
+python -m pipeline.scm run-all-seed-categories --test-mode --paper-limit 5
+python -m pipeline.scm run-discovery --test-mode --paper-limit 50 --top-n 10 --web-limit 5
+python -m pipeline.scm run-all --dry-run --test-mode
+```
+
 ### Corpus shard (batch processing)
 
 ```bash
