@@ -124,8 +124,20 @@ def validate_extract_stage(root: Path, spec: StageSpec) -> None:
 
 
 def validate_export_stage(root: Path, spec: StageSpec) -> None:
-    report = _validate_json(root / "all_records" / "validation_report.json")
+    # Prefer canonical metadata/ contract; fall back to all_records/ aliases.
+    meta_report = root / "metadata" / "validation_report.json"
+    legacy_report = root / "all_records" / "validation_report.json"
+    report_path = meta_report if meta_report.is_file() else legacy_report
+    report = _validate_json(report_path)
     _check_versions(report, spec)
+    if report.get("overall_status") and report.get("overall_status") != "pass":
+        raise ResumeValidationError(
+            f"validation_report overall_status={report.get('overall_status')!r}"
+        )
+    if not (root / "metadata" / "run_manifest.json").is_file() and not (
+        root / "all_records" / "run_manifest.json"
+    ).is_file():
+        raise ResumeValidationError("missing run_manifest.json under metadata/ or all_records/")
     _validate_csv(root / "all_records" / "cementitious_materials_all_records.csv", allow_empty=True)
     _validate_csv(root / "all_records" / "citations_all.csv", allow_empty=True)
     pending = root / "pending_taxonomy_review" / "pending_taxonomy_records.csv"
@@ -179,7 +191,8 @@ STAGE_SPECS: dict[str, StageSpec] = {
         name="export",
         marker_name="export.complete",
         required_outputs=(
-            "all_records/validation_report.json",
+            "metadata/run_manifest.json",
+            "metadata/validation_report.json",
             "all_records/cementitious_materials_all_records.csv",
             "all_records/citations_all.csv",
         ),

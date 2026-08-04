@@ -1319,14 +1319,7 @@ def export_final(*, output_dir: str | Path, force: bool = False) -> dict[str, An
         output_dir=out,
         force=force,
     )
-    write_marker(layout["checkpoints"] / "export.complete")
-    finish_stage_telemetry(
-        telemetry,
-        out,
-        status="complete",
-        records_processed=int(summary.get("exported_record_count") or summary.get("record_count") or 0),
-    )
-    # Consolidate pilot telemetry + write full-run recommendations when possible.
+    # Resource telemetry + recommendations must exist before final validation.
     try:
         from pipeline.cementitious.resource_calibration import (
             build_full_run_recommendations,
@@ -1337,4 +1330,26 @@ def export_final(*, output_dir: str | Path, force: bool = False) -> dict[str, An
         build_full_run_recommendations(out)
     except Exception as exc:
         logger.warning("Resource calibration summary failed: %s", exc)
+
+    from pipeline.cementitious.final_metadata import FinalMetadataError, write_final_metadata
+
+    meta = write_final_metadata(out, ensure_resources=False)
+    if meta.get("overall_status") != "pass":
+        finish_stage_telemetry(telemetry, out, status="error")
+        raise FinalMetadataError(
+            "Final output validation failed; refusing to write export.complete. "
+            f"See {meta.get('validation_report_path')}"
+        )
+
+    write_marker(layout["checkpoints"] / "export.complete")
+    finish_stage_telemetry(
+        telemetry,
+        out,
+        status="complete",
+        records_processed=int(summary.get("exported_record_count") or summary.get("record_count") or 0),
+    )
+    summary = dict(summary)
+    summary["run_manifest_path"] = meta.get("run_manifest_path")
+    summary["validation_report_path"] = meta.get("validation_report_path")
+    summary["final_validation_status"] = meta.get("overall_status")
     return summary

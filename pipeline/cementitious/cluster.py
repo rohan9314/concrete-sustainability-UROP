@@ -170,6 +170,18 @@ def main(argv: list[str] | None = None) -> int:
     export.add_argument("--output", default="")
     export.add_argument("--force", action="store_true")
 
+    fin = sub.add_parser(
+        "finalize-metadata",
+        help="Write metadata/run_manifest.json + validation_report.json for an existing output dir (no LLM/web)",
+    )
+    fin.add_argument("--output", default="")
+    fin.add_argument("--force", action="store_true", help="Rewrite metadata even if export.complete exists")
+    fin.add_argument(
+        "--allow-fail",
+        action="store_true",
+        help="Write metadata even when validation fails (does not write export.complete)",
+    )
+
     migrate = sub.add_parser("migrate-carbon-capture")
     migrate.add_argument("--input", required=True)
     migrate.add_argument("--output", default="")
@@ -349,10 +361,32 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "export":
-        result = export_final(
-            output_dir=_output_dir(args.output or None),
-            force=bool(args.force or _bool_env("FORCE")),
-        )
+        from pipeline.cementitious.final_metadata import FinalMetadataError
+
+        try:
+            result = export_final(
+                output_dir=_output_dir(args.output or None),
+                force=bool(args.force or _bool_env("FORCE")),
+            )
+        except FinalMetadataError as exc:
+            print(json.dumps({"status": "validation_failed", "error": str(exc)}, indent=2))
+            return 1
+        print(json.dumps(result, indent=2, default=str))
+        return 0
+
+    if args.command == "finalize-metadata":
+        from pipeline.cementitious.final_metadata import FinalMetadataError, finalize_metadata
+
+        try:
+            result = finalize_metadata(
+                output_dir=_output_dir(args.output or None),
+                force=bool(args.force or _bool_env("FORCE")),
+                write_export_complete=not bool(args.allow_fail),
+                require_pass=not bool(args.allow_fail),
+            )
+        except FinalMetadataError as exc:
+            print(json.dumps({"status": "validation_failed", "error": str(exc)}, indent=2))
+            return 1
         print(json.dumps(result, indent=2, default=str))
         return 0
 

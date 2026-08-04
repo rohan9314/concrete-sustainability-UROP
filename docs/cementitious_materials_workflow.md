@@ -51,9 +51,9 @@ ${RESULTS_ROOT}/7-30 results/
 │   ├── cementitious_materials_all_records.csv
 │   ├── cementitious_materials_all_records.jsonl
 │   ├── citations_all.csv
-│   ├── run_manifest.json
+│   ├── run_manifest.json          # compatibility alias of metadata/run_manifest.json
 │   ├── taxonomy_manifest.json
-│   ├── validation_report.json
+│   ├── validation_report.json     # compatibility alias (+ optional export_stats)
 │   └── partition_summary.csv
 ├── subcategories/          # 9 CSVs (always created, empty OK)
 ├── sub_subcategories/      # 58 CSVs (always created, empty OK)
@@ -69,7 +69,47 @@ ${RESULTS_ROOT}/7-30 results/
 ├── checkpoints/
 ├── rejected_records/
 └── metadata/
+    ├── run_manifest.json          # canonical final-run summary (required)
+    ├── validation_report.json     # canonical output-contract checks (required)
+    ├── resource_usage_summary.json
+    ├── full_run_resource_recommendations.json   # required after successful pilot
+    └── …
 ```
+
+### Record count vs CSV file count
+
+A successful taxonomy export always materializes **all** configured partition CSVs (9 subcategory + 58 leaf record files, plus matching citation CSVs), even when a branch has zero accepted rows. Pilot runs may therefore create ~150 CSV files while only populating one selected leaf (for example Chemical Absorption). Empty header-only partition files are valid.
+
+### Final metadata contract
+
+Canonical machine-readable summaries live under `metadata/`:
+
+- `run_manifest.json` — what ran (mode, taxonomy, counts, checkpoints, job IDs, non-secret settings).
+- `validation_report.json` — pass/fail checks that the exported partition tree matches the master records/citations.
+
+`checkpoints/export.complete` is written **only after** both JSON files are written and `validation_report.overall_status` is `pass`.
+
+Compatibility copies are also written under `all_records/` for older local-runner consumers.
+
+### Metadata-only repair
+
+If an older Engaging run exported CSVs and wrote `export.complete` before this contract existed, regenerate metadata without re-running LLM/web stages:
+
+```bash
+python -m pipeline.cementitious.cluster finalize-metadata \
+  --output "/path/to/7-30 results"
+```
+
+This reads existing CSVs, writes `metadata/run_manifest.json` and `metadata/validation_report.json`, and refreshes `export.complete` only when validation passes. No OpenAI or Tavily calls are made.
+
+### What counts as a successful final run
+
+1. Master + all taxonomy partition/citation CSVs exist with correct headers.
+2. Every master record appears in the matching subcategory and leaf files only.
+3. Citations align to records and leaf citation partitions.
+4. Required audits for missing shards / invalid taxonomy are empty (as applicable).
+5. `metadata/run_manifest.json` and `metadata/validation_report.json` exist with `overall_status: pass`.
+6. `checkpoints/export.complete` is present.
 
 ### RESULTS_ROOT normalization
 

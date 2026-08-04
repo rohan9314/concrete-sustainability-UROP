@@ -447,6 +447,7 @@ def run_pipeline(config: RunConfig) -> dict[str, Any]:
     # Dedup
     extracted, audit = deduplicate_records(extracted)
     write_dedupe_audit(layout["metadata"] / "deduplication_audit.csv", audit)
+    _mark_complete(layout["checkpoints"], "dedupe_qc")
 
     # Proposals
     write_csv(
@@ -475,6 +476,14 @@ def run_pipeline(config: RunConfig) -> dict[str, Any]:
         force=config.force,
         allow_missing_citations=config.allow_missing_citations,
     )
+    from pipeline.cementitious.final_metadata import write_final_metadata
+
+    meta = write_final_metadata(output_dir, taxonomy=taxonomy, ensure_resources=True)
+    if meta.get("overall_status") != "pass":
+        raise RuntimeError(
+            "Final validation failed; export.complete not written. "
+            f"See {meta.get('validation_report_path')}"
+        )
     _mark_complete(layout["checkpoints"], "export")
 
     end_time = datetime.now(timezone.utc)

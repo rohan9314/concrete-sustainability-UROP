@@ -294,6 +294,7 @@ print("ENGAGING_SCRIPTS:", r"""$ENGAGING_SCRIPTS""")
 print("preprocess_sbatch:", f'--chdir={r"""$REPO_ROOT"""} --export=ALL,REPO_ROOT=... {r"""$ENGAGING_SCRIPTS"""}/730_cementitious_preprocess_plan.sh')
 print("helper_resolve_out:", r"""$ENGAGING_SCRIPTS/_resolve_cementitious_out.sh""")
 print("helper_diagnostics:", r"""$ENGAGING_SCRIPTS/_cementitious_slurm_diagnostics.sh""")
+print("final_metadata:", "metadata/run_manifest.json + metadata/validation_report.json (export stage; export.complete after pass)")
 PY
   exit 0
 fi
