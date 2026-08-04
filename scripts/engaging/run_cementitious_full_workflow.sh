@@ -11,11 +11,26 @@
 # Does not print secret values. Does not push. Does not call APIs during dry-run.
 set -euo pipefail
 
-_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="${REPO_ROOT:-$(cd "$_SCRIPT_DIR/../.." && pwd)}"
+die() { echo "ERROR: $*" >&2; exit 1; }
+
+# Login-node launcher: prefer git toplevel, then validated REPO_ROOT / submit dir.
+# Do not trust Slurm spool paths for repository helpers.
+_LAUNCH_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ -z "${REPO_ROOT:-}" ]] && command -v git >/dev/null 2>&1; then
+  if _git_root="$(git -C "$_LAUNCH_DIR" rev-parse --show-toplevel 2>/dev/null)"; then
+    REPO_ROOT="$_git_root"
+  fi
+fi
+if [[ -z "${REPO_ROOT:-}" ]]; then
+  REPO_ROOT="$(cd "$_LAUNCH_DIR/../.." && pwd)"
+fi
+# shellcheck source=scripts/engaging/_cementitious_repo_root.sh
+source "$REPO_ROOT/scripts/engaging/_cementitious_repo_root.sh"
+cementitious_resolve_repo_root "one_line_launcher" || exit 1
 cd "$REPO_ROOT"
 export REPO_ROOT
 mkdir -p logs
+ENGAGING_SCRIPTS="$REPO_ROOT/scripts/engaging"
 
 MODE=""
 DRY_RUN=0
@@ -42,8 +57,6 @@ if [[ -z "$MODE" ]]; then
   echo "ERROR: require --pilot or --full" >&2
   exit 1
 fi
-
-die() { echo "ERROR: $*" >&2; exit 1; }
 
 if [[ -z "${VIRTUAL_ENV:-}" ]]; then
   if [[ -f "$REPO_ROOT/.venv/bin/activate" ]]; then
@@ -127,12 +140,14 @@ PY
 source "$ENV_FILE"
 rm -f "$ENV_FILE"
 
-echo "======== Cementitious one-line workflow ========"
+  echo "======== Cementitious one-line workflow ========"
 echo "mode=$MODE"
 echo "dry_run=$DRY_RUN"
 echo "run_mode=literature-and-web"
 echo "literature_enabled=yes"
 echo "web_search_enabled=yes (Tavily)"
+echo "REPO_ROOT=$REPO_ROOT"
+echo "ENGAGING_SCRIPTS=$ENGAGING_SCRIPTS"
 if [[ -n "${CFG_MAX_RECORDS}" ]]; then
   echo "literature_record_cap=$CFG_MAX_RECORDS"
 else
@@ -193,9 +208,30 @@ else
 fi
 
 # shellcheck source=scripts/engaging/_resolve_cementitious_out.sh
-source "$_SCRIPT_DIR/_resolve_cementitious_out.sh"
+cementitious_source_engaging_helper "_resolve_cementitious_out.sh" "one_line_launcher" || exit 1
 resolve_cementitious_out || exit 1
 mkdir -p "$OUT/metadata" "$OUT/logs" "$OUT/checkpoints"
+printf '%s\n' "$REPO_ROOT" >"$OUT/metadata/repo_root.txt"
+"$PYTHON_BIN" - <<PY
+from pathlib import Path
+import json
+from datetime import datetime, timezone
+meta = Path(r"""$OUT""") / "metadata" / "repo_root.json"
+meta.write_text(
+    json.dumps(
+        {
+            "repo_root": r"""$REPO_ROOT""",
+            "engaging_scripts": r"""$ENGAGING_SCRIPTS""",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "secrets_included": False,
+        },
+        indent=2,
+    )
+    + "\n",
+    encoding="utf-8",
+)
+print(f"Wrote {meta}")
+PY
 
 if [[ "$MODE" == "full" && "$ALLOW_UNCALIBRATED" != "1" ]]; then
   CAL_ENV="$OUT/metadata/applied_full_run_resources.env"
@@ -253,6 +289,11 @@ print("literature_record_cap:", dry.get("literature_record_cap"))
 print("web_leaf_count:", dry.get("web_leaf_count"))
 print("acyclic:", (dry.get("dependency_graph") or {}).get("acyclic"))
 print("soft_fraction_of_slurm_mem:", dry.get("soft_fraction_of_slurm_mem"))
+print("REPO_ROOT:", r"""$REPO_ROOT""")
+print("ENGAGING_SCRIPTS:", r"""$ENGAGING_SCRIPTS""")
+print("preprocess_sbatch:", f'--chdir={r"""$REPO_ROOT"""} --export=ALL,REPO_ROOT=... {r"""$ENGAGING_SCRIPTS"""}/730_cementitious_preprocess_plan.sh')
+print("helper_resolve_out:", r"""$ENGAGING_SCRIPTS/_resolve_cementitious_out.sh""")
+print("helper_diagnostics:", r"""$ENGAGING_SCRIPTS/_cementitious_slurm_diagnostics.sh""")
 PY
   exit 0
 fi
@@ -260,11 +301,13 @@ fi
 command -v sbatch >/dev/null 2>&1 || die "sbatch not found — run on an Engaging login node"
 
 PREPROCESS_JOB=$(sbatch --parsable \
-  --export=ALL \
-  "$_SCRIPT_DIR/730_cementitious_preprocess_plan.sh")
+  --chdir="$REPO_ROOT" \
+  --export=ALL,REPO_ROOT="$REPO_ROOT" \
+  "$ENGAGING_SCRIPTS/730_cementitious_preprocess_plan.sh")
 echo "Submitted preprocess_plan -> $PREPROCESS_JOB"
 
 BOOTSTRAP_JOB=$(sbatch --parsable \
+  --chdir="$REPO_ROOT" \
   --job-name="cm-bootstrap-${MODE}" \
   --output="logs/cm-bootstrap-${MODE}-%j.out" \
   --error="logs/cm-bootstrap-${MODE}-%j.err" \
@@ -272,8 +315,8 @@ BOOTSTRAP_JOB=$(sbatch --parsable \
   --cpus-per-task=1 \
   --mem=8G \
   --dependency="afterok:${PREPROCESS_JOB}" \
-  --export=ALL,SKIP_LIT_PLAN=1,DRY_RUN=0,EXECUTION_MODE=submit,RUN_MODE=literature-and-web \
-  --wrap="cd \"$REPO_ROOT\" && bash scripts/engaging/run_730_results.sh")
+  --export=ALL,REPO_ROOT="$REPO_ROOT",SKIP_LIT_PLAN=1,DRY_RUN=0,EXECUTION_MODE=submit,RUN_MODE=literature-and-web \
+  --wrap="cd \"$REPO_ROOT\" && export REPO_ROOT=\"$REPO_ROOT\" && bash \"$ENGAGING_SCRIPTS/run_730_results.sh\"")
 echo "Submitted bootstrap (screen/web/finalize chain) -> $BOOTSTRAP_JOB"
 
 "$PYTHON_BIN" - <<PY
@@ -288,6 +331,10 @@ payload = {
     "run_mode": "literature-and-web",
     "web_search_enabled": True,
     "literature_record_cap": cap if cap else "FULL",
+    "repo_root": r"""$REPO_ROOT""",
+    "engaging_scripts": r"""$ENGAGING_SCRIPTS""",
+    "chdir": r"""$REPO_ROOT""",
+    "preprocess_script": r"""$ENGAGING_SCRIPTS/730_cementitious_preprocess_plan.sh""",
     "results_root": r"""$RESULTS_ROOT""",
     "output_dir": str(out),
     "jobs": [

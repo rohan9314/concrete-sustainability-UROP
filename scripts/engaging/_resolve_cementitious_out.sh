@@ -2,8 +2,8 @@
 # Shared RESULTS_ROOT → OUT normalization for Cementitious Materials Engaging scripts.
 # Mirrors pipeline.cementitious.paths.resolve_results_dir.
 #
-# Usage (source from other scripts):
-#   source "$(dirname "${BASH_SOURCE[0]}")/_resolve_cementitious_out.sh"
+# Usage (source from other scripts via REPO_ROOT — never via Slurm spool BASH_SOURCE):
+#   source "$REPO_ROOT/scripts/engaging/_resolve_cementitious_out.sh"
 #   resolve_cementitious_out   # sets OUT
 #
 # Rules:

@@ -14,10 +14,23 @@
 #
 set -euo pipefail
 
-_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="${REPO_ROOT:-$(cd "$_SCRIPT_DIR/../.." && pwd)}"
+die() { echo "ERROR: $*" >&2; exit 1; }
+
+_LAUNCH_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ -z "${REPO_ROOT:-}" ]] && command -v git >/dev/null 2>&1; then
+  if _git_root="$(git -C "$_LAUNCH_DIR" rev-parse --show-toplevel 2>/dev/null)"; then
+    REPO_ROOT="$_git_root"
+  fi
+fi
+if [[ -z "${REPO_ROOT:-}" ]]; then
+  REPO_ROOT="$(cd "$_LAUNCH_DIR/../.." && pwd)"
+fi
+# shellcheck source=scripts/engaging/_cementitious_repo_root.sh
+source "$REPO_ROOT/scripts/engaging/_cementitious_repo_root.sh"
+cementitious_resolve_repo_root "run_730_results" || exit 1
 cd "$REPO_ROOT"
 export REPO_ROOT
+ENGAGING_SCRIPTS="$REPO_ROOT/scripts/engaging"
 mkdir -p logs
 
 export SHARD_SIZE="${SHARD_SIZE:-10000}"
@@ -70,8 +83,6 @@ if [[ -n "${PICKLE_PATH:-}" && -z "${PAPER_RECORDS_PATH:-}" ]]; then
   export PAPER_RECORDS_PATH="$PICKLE_PATH"
 fi
 
-die() { echo "ERROR: $*" >&2; exit 1; }
-
 [[ -n "${OPENAI_API_KEY:-}" ]] || die "OPENAI_API_KEY is required"
 [[ -n "${RESULTS_ROOT:-}" ]] || die "RESULTS_ROOT is required"
 
@@ -86,9 +97,11 @@ fi
 
 mkdir -p "$RESULTS_ROOT"
 # shellcheck source=scripts/engaging/_resolve_cementitious_out.sh
-source "$_SCRIPT_DIR/_resolve_cementitious_out.sh"
+cementitious_source_engaging_helper "_resolve_cementitious_out.sh" "run_730_results" || exit 1
 resolve_cementitious_out || exit 1
+mkdir -p "$OUT"
 mkdir -p "$OUT"/{all_records,subcategories,sub_subcategories,citations/subcategories,citations/sub_subcategories,pending_taxonomy_review,logs,checkpoints,rejected_records,metadata}
+printf '%s\n' "$REPO_ROOT" >"$OUT/metadata/repo_root.txt"
 mkdir -p "$OUT/metadata/screening_shards" "$OUT/checkpoints/screen_shards"
 mkdir -p "$OUT/metadata/extraction_shards" "$OUT/checkpoints/extraction_shards"
 mkdir -p "$OUT/metadata/web_search_shards" "$OUT/checkpoints/web_search_shards"
@@ -188,7 +201,7 @@ if [[ "$NEED_LIT" -eq 1 ]]; then
     [[ -f "$OUT/metadata/corpus_shards_manifest.json" ]] || die "missing corpus_shards_manifest.json (memory-safe shards required)"
   else
     echo "Running synchronous plan-screen (materializes corpus JSONL shards; high RAM)..."
-    bash "$_SCRIPT_DIR/730_cementitious_plan.sh"
+    bash "$ENGAGING_SCRIPTS/730_cementitious_plan.sh"
   fi
   SCREEN_RANGE="$(tr -d '[:space:]' < "$OUT/metadata/screen_array_range.txt")"
   [[ -n "$SCREEN_RANGE" ]] || die "screen_array_range.txt is empty; refusing default 0-0"
@@ -202,7 +215,7 @@ fi
 
 if [[ "$NEED_WEB" -eq 1 ]]; then
   echo "Running synchronous plan-web-queries..."
-  bash "$_SCRIPT_DIR/730_cementitious_plan_web_queries.sh"
+  bash "$ENGAGING_SCRIPTS/730_cementitious_plan_web_queries.sh"
   WEB_SEARCH_RANGE="$(tr -d '[:space:]' < "$OUT/metadata/web_search_array_range.txt" || true)"
   if [[ -n "${WEB_SEARCH_ARRAY_OVERRIDE:-}" ]]; then
     echo "WARNING: WEB_SEARCH_ARRAY_OVERRIDE=${WEB_SEARCH_ARRAY_OVERRIDE} (debug only)"
@@ -299,6 +312,7 @@ submit_login() {
   shift 2
   local mem="${SUBMIT_LOGIN_MEM:-16G}"
   sbatch --parsable \
+    --chdir="$REPO_ROOT" \
     --job-name="$job_name" \
     --output="logs/${job_name}-%j.out" \
     --time=04:00:00 \
@@ -306,7 +320,7 @@ submit_login() {
     --mem="$mem" \
     --export="$COMMON_EXPORT" \
     "$@" \
-    --wrap="cd \"$REPO_ROOT\" && export CEMENTITIOUS_SOFT_MEMORY_LIMIT_GB=\${CEMENTITIOUS_SOFT_MEMORY_LIMIT_GB:-12.8} && $cmd"
+    --wrap="cd \"$REPO_ROOT\" && export REPO_ROOT=\"$REPO_ROOT\" && export CEMENTITIOUS_SOFT_MEMORY_LIMIT_GB=\${CEMENTITIOUS_SOFT_MEMORY_LIMIT_GB:-12.8} && $cmd"
 }
 
 if [[ "$EXECUTION_MODE" == "interactive" ]]; then
@@ -369,9 +383,10 @@ web_orch_job=""
 # ── Literature branch ────────────────────────────────────────────────────────
 if [[ "$NEED_LIT" -eq 1 ]]; then
   screen_job=$(sbatch --parsable \
+    --chdir="$REPO_ROOT" \
     --export="$COMMON_EXPORT" \
     --array="$SCREEN_RANGE" \
-    "$_SCRIPT_DIR/730_cementitious_screen_array.sh")
+    "$ENGAGING_SCRIPTS/730_cementitious_screen_array.sh")
   record_job screen "$screen_job"
   lit_dep=$(join_deps "$screen_job")
 
@@ -391,9 +406,10 @@ fi
 if [[ "$NEED_WEB" -eq 1 ]]; then
   if [[ -n "$WEB_SEARCH_RANGE" ]]; then
     web_search_job=$(sbatch --parsable \
+      --chdir="$REPO_ROOT" \
       --export="$COMMON_EXPORT" \
       --array="$WEB_SEARCH_RANGE" \
-      "$_SCRIPT_DIR/730_cementitious_web_search_array.sh")
+      "$ENGAGING_SCRIPTS/730_cementitious_web_search_array.sh")
     record_job web_search "$web_search_job"
     web_dep=$(join_deps "$web_search_job")
   else
