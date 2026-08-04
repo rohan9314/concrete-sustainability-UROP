@@ -141,6 +141,25 @@ python -m pipeline.scm run-discovery --test-mode --paper-limit 50 --top-n 10 --w
 python -m pipeline.scm run-all --dry-run --test-mode
 ```
 
+### Cementitious Materials unified pipeline (7-30 results)
+
+Umbrella category covering binders, SCMs, fillers, clinker feedstocks, manufacturing efficiency,
+and cement-plant carbon capture. See [`docs/cementitious_materials_workflow.md`](docs/cementitious_materials_workflow.md).
+
+```bash
+export PICKLE_PATH=/path/to/your/corpus.pkl
+export OPENAI_API_KEY=your_key_here
+export RESULTS_ROOT=/path/to/results/root   # optional; default <repo>/results
+
+python -m pipeline.run_cementitious_materials plan
+python -m pipeline.run_cementitious_materials run \
+  --sample-size 20 --seed 42 --literature-only --keyword-only \
+  --output /tmp/cementitious-smoke-test
+
+# Engaging one-command (after exporting keys + PICKLE_PATH + RESULTS_ROOT):
+./run_730_results.sh
+```
+
 ### Corpus shard (batch processing)
 
 ```bash
@@ -160,10 +179,13 @@ See `docs/batch_worker_example.sh` for an example parallel worker pattern. Large
 | Variable | Default | Purpose |
 |---|---|---|
 | `PICKLE_PATH` | — | Local paper corpus pickle |
-| `TOP_N_SOURCES` | `50` | Ranked papers per shard/query |
-| `EXTRACTION_CONCURRENCY` | `4` | Bounded parallel workers |
-| `OUTPUT_DIR` | `./outputs` | Shard output directory |
+| `PAPER_RECORDS_PATH` | — | Alias for `PICKLE_PATH` |
+| `RESULTS_ROOT` | `<repo>/results` | Parent of `7-30 results` (Cementitious Materials) |
+| `TOP_N_SOURCES` / `TOP_N` | `50` | Ranked papers per shard/query |
+| `EXTRACTION_CONCURRENCY` / `CONCURRENCY` | `4` | Bounded parallel workers |
+| `OUTPUT_DIR` | `./outputs` | Shard output directory (CCS/SCM) |
 | `TECH_DATABASE_PATH` | `./data/sample_technology_database.json` | Database served to frontend |
+| `TAXONOMY_PATH` | `config/cementitious_materials_taxonomy.json` | Cementitious taxonomy override |
 
 ## Gitignored assets
 

@@ -1,0 +1,2596 @@
+taxonomy_version: cementitious-materials-v1-2026-07-30
+schema_version: cementitious-materials-schema-v1
+category:
+  display_name: Cementitious Materials
+  slug: cementitious_materials
+  definition: Umbrella category for cementitious binders, SCMs, fillers, clinker feedstocks, cement manufacturing
+    efficiency, and cement-plant carbon capture.
+controlled_vocabularies:
+  technology_domain:
+  - Cement or Binder
+  - Supplementary Cementitious Material
+  - Filler
+  - Clinker Feedstock
+  - Cement Manufacturing Process
+  - Carbon Capture Process
+  - Multi-Material Binder System
+  - Uncertain
+  functional_role:
+  - Complete Binder
+  - Clinker-Containing Cement
+  - Clinker Replacement
+  - Cement Replacement
+  - Pozzolanic SCM
+  - Hydraulic SCM
+  - Latent Hydraulic SCM
+  - Filler
+  - Activator
+  - Clinker Feedstock
+  - Kiln Fuel
+  - Manufacturing Process
+  - Carbon Capture System
+  - Multi-Component Binder
+  - Other
+  - Uncertain
+  classification_basis:
+  - Explicit
+  - Strongly Inferred
+  - Weakly Inferred
+  - Unresolved
+  confidence:
+  - High
+  - Medium
+  - Low
+  duplicate_status:
+  - Unique
+  - Exact Duplicate Removed
+  - Possible Duplicate
+  - Consolidated
+subcategories:
+- slug: conventional_and_blended_cements
+  display_name: Conventional and Blended Cements
+  parent: cementitious_materials
+  level: subcategory
+  definition: Ordinary Portland and factory-produced blended hydraulic cements.
+  inclusion_criteria:
+  - OPC
+  - PLC
+  - Type IP/IS
+  - LC3 as cement product
+  exclusion_criteria:
+  - Separate SCM additions
+  - alkali-activated binders
+  - non-Portland alternative chemistries
+  representative_synonyms:
+  - blended cement
+  - Portland cement
+  - hydraulic cement
+  representative_technology_variants: []
+  expected_technology_domain: Cement or Binder
+  allowed_functional_roles:
+  - Complete Binder
+  - Clinker-Containing Cement
+  positive_screening_cues:
+  - blended cement
+  - Portland cement
+  - hydraulic cement
+  negative_screening_cues:
+  - SCM only
+  - geopolymer
+  - alkali-activated
+  retrieval_query_terms:
+  - blended cement
+  - Portland cement
+  - hydraulic cement
+  children:
+  - slug: ordinary_portland_cement
+    display_name: Ordinary Portland Cement
+    parent: conventional_and_blended_cements
+    level: sub_subcategory
+    definition: Standard Portland cement conforming to ASTM C150 or equivalent without substantial SCM
+      blending at the factory level.
+    inclusion_criteria:
+    - OPC
+    - ASTM C150 Types I–V as primary binder
+    exclusion_criteria:
+    - PLC
+    - LC3
+    - Type IP/IS blended cements
+    representative_synonyms:
+    - OPC
+    - Portland cement
+    - ordinary Portland cement
+    representative_technology_variants:
+    - ASTM C150 Type I
+    - ASTM C150 Type II
+    - ASTM C150 Type III
+    - ASTM C150 Type IV
+    - ASTM C150 Type V
+    expected_technology_domain: Cement or Binder
+    allowed_functional_roles:
+    - Complete Binder
+    - Clinker-Containing Cement
+    positive_screening_cues:
+    - OPC
+    - Portland cement
+    - ordinary Portland cement
+    negative_screening_cues: []
+    retrieval_query_terms:
+    - OPC
+    - Portland cement
+    - ordinary Portland cement
+  - slug: portland_limestone_cement
+    display_name: Portland-Limestone Cement
+    parent: conventional_and_blended_cements
+    level: sub_subcategory
+    definition: Factory-produced Portland cement with interground or blended limestone (e.g., Type IL).
+    inclusion_criteria:
+    - Type IL
+    - PLC
+    - limestone-blended Portland cement
+    exclusion_criteria:
+    - Limestone used only as inert filler addition on site
+    - LC3
+    representative_synonyms:
+    - PLC
+    - Type IL
+    - Portland limestone cement
+    representative_technology_variants:
+    - Type IL Cement
+    - Limestone-Blended Portland Cement
+    - PLC
+    expected_technology_domain: Cement or Binder
+    allowed_functional_roles:
+    - Complete Binder
+    - Clinker-Containing Cement
+    positive_screening_cues:
+    - PLC
+    - Type IL
+    - Portland limestone cement
+    negative_screening_cues: []
+    retrieval_query_terms:
+    - PLC
+    - Type IL
+    - Portland limestone cement
+  - slug: portland_pozzolan_cement
+    display_name: Portland-Pozzolan Cement
+    parent: conventional_and_blended_cements
+    level: sub_subcategory
+    definition: Factory-produced blended hydraulic cement containing pozzolan (e.g., Type IP).
+    inclusion_criteria:
+    - Type IP
+    - natural-pozzolan blended cement
+    - calcined-clay blended cement as factory product
+    exclusion_criteria:
+    - Pozzolan added only as separate SCM at concrete plant
+    representative_synonyms:
+    - Type IP
+    - Portland pozzolan cement
+    - PPC
+    representative_technology_variants:
+    - Type IP Cement
+    - Natural-Pozzolan Blended Cement
+    - Calcined-Clay Blended Cement
+    expected_technology_domain: Cement or Binder
+    allowed_functional_roles:
+    - Complete Binder
+    - Clinker-Containing Cement
+    positive_screening_cues:
+    - Type IP
+    - Portland pozzolan cement
+    - PPC
+    negative_screening_cues: []
+    retrieval_query_terms:
+    - Type IP
+    - Portland pozzolan cement
+    - PPC
+  - slug: portland_blast_furnace_slag_cement
+    display_name: Portland Blast-Furnace Slag Cement
+    parent: conventional_and_blended_cements
+    level: sub_subcategory
+    definition: Factory-produced Portland cement blended with blast-furnace slag (e.g., Type IS).
+    inclusion_criteria:
+    - Type IS
+    - high-slag blended cement as factory product
+    exclusion_criteria:
+    - GGBFS used only as separate SCM
+    representative_synonyms:
+    - Type IS
+    - Portland slag cement
+    - blast-furnace slag cement
+    representative_technology_variants:
+    - Type IS Cement
+    - High-Slag Blended Cement
+    expected_technology_domain: Cement or Binder
+    allowed_functional_roles:
+    - Complete Binder
+    - Clinker-Containing Cement
+    positive_screening_cues:
+    - Type IS
+    - Portland slag cement
+    - blast-furnace slag cement
+    negative_screening_cues: []
+    retrieval_query_terms:
+    - Type IS
+    - Portland slag cement
+    - blast-furnace slag cement
+  - slug: limestone_calcined_clay_cement
+    display_name: Limestone Calcined Clay Cement
+    parent: conventional_and_blended_cements
+    level: sub_subcategory
+    definition: Factory-produced or formulated LC3 / limestone–calcined-clay blended cement systems.
+    inclusion_criteria:
+    - LC3
+    - limestone calcined clay cement as binder product
+    exclusion_criteria:
+    - Calcined clay used alone as SCM without LC3 binder framing
+    representative_synonyms:
+    - LC3
+    - limestone calcined clay cement
+    - LC3 cement
+    representative_technology_variants:
+    - LC3
+    - Limestone-Calcined-Clay Blend
+    - Limestone Calcined Clay Cement
+    expected_technology_domain: Cement or Binder
+    allowed_functional_roles:
+    - Complete Binder
+    - Clinker-Containing Cement
+    - Multi-Component Binder
+    positive_screening_cues:
+    - LC3
+    - limestone calcined clay cement
+    - LC3 cement
+    negative_screening_cues: []
+    retrieval_query_terms:
+    - LC3
+    - limestone calcined clay cement
+    - LC3 cement
+  - slug: other_blended_hydraulic_cement
+    display_name: Other Blended Hydraulic Cement
+    parent: conventional_and_blended_cements
+    level: sub_subcategory
+    definition: Other factory-produced blended hydraulic cements not covered by the specific nodes above.
+    inclusion_criteria:
+    - Other ASTM C595 / EN blended cements
+    exclusion_criteria:
+    - Site-batched multi-SCM blends (see Multi-Material Cementitious Blends)
+    representative_synonyms:
+    - blended hydraulic cement
+    - composite cement
+    representative_technology_variants:
+    - Other Blended Hydraulic Cement
+    expected_technology_domain: Cement or Binder
+    allowed_functional_roles:
+    - Complete Binder
+    - Clinker-Containing Cement
+    positive_screening_cues:
+    - blended hydraulic cement
+    - composite cement
+    negative_screening_cues: []
+    retrieval_query_terms:
+    - blended hydraulic cement
+    - composite cement
+- slug: clinker_feedstock_decarbonization
+  display_name: Clinker Feedstock Decarbonization
+  parent: cementitious_materials
+  level: subcategory
+  definition: Substitution of conventional carbonate limestone with alternative clinker raw feedstocks.
+  inclusion_criteria:
+  - Alternative raw meal
+  - reclinkering
+  - biogenic Ca feedstock
+  exclusion_criteria:
+  - SCM use of same materials
+  - kiln fuel substitution
+  representative_synonyms:
+  - alternative raw materials
+  - clinker feedstock
+  representative_technology_variants: []
+  expected_technology_domain: Clinker Feedstock
+  allowed_functional_roles:
+  - Clinker Feedstock
+  positive_screening_cues:
+  - alternative raw materials
+  - clinker feedstock
+  negative_screening_cues:
+  - used as SCM
+  - cement replacement
+  - kiln fuel
+  retrieval_query_terms:
+  - alternative raw materials
+  - clinker feedstock
+  children:
+  - slug: industrial_waste_derived_clinker_feedstocks
+    display_name: Industrial Waste-Derived Clinker Feedstocks
+    parent: clinker_feedstock_decarbonization
+    level: sub_subcategory
+    definition: Industrial wastes used as raw meal / clinker kiln feedstocks.
+    inclusion_criteria:
+    - slag-derived feedstock
+    - CKD as feedstock
+    - carbide sludge feedstock
+    exclusion_criteria:
+    - Same wastes used only as SCMs
+    representative_synonyms:
+    - waste-derived clinker feedstock
+    - alternative raw meal
+    representative_technology_variants:
+    - Slag-Derived Feedstock
+    - Lignite Ash Feedstock
+    - Carbide Sludge Feedstock
+    - Aerated Concrete Meal
+    - Sugar-Industry Lime Residue
+    - Cement Kiln Dust
+    - High-Calcium Industrial Waste
+    expected_technology_domain: Clinker Feedstock
+    allowed_functional_roles:
+    - Clinker Feedstock
+    positive_screening_cues:
+    - waste-derived clinker feedstock
+    - alternative raw meal
+    negative_screening_cues: []
+    retrieval_query_terms:
+    - waste-derived clinker feedstock
+    - alternative raw meal
+  - slug: biogenic_calcium_feedstocks
+    display_name: Biogenic Calcium Feedstocks
+    parent: clinker_feedstock_decarbonization
+    level: sub_subcategory
+    definition: Biogenic calcium sources used to replace carbonate limestone in clinker production.
+    inclusion_criteria:
+    - biogenic limestone
+    - shell-derived Ca feedstock
+    - microalgae-grown limestone
+    exclusion_criteria:
+    - Biomass as kiln fuel only
+    representative_synonyms:
+    - biogenic limestone
+    - biogenic calcium carbonate
+    representative_technology_variants:
+    - Microalgae-Grown Limestone
+    - Biogenic Limestone
+    - Biogenic Calcium Carbonate
+    - Shell-Derived Calcium Feedstock
+    expected_technology_domain: Clinker Feedstock
+    allowed_functional_roles:
+    - Clinker Feedstock
+    positive_screening_cues:
+    - biogenic limestone
+    - biogenic calcium carbonate
+    negative_screening_cues: []
+    retrieval_query_terms:
+    - biogenic limestone
+    - biogenic calcium carbonate
+  - slug: recycled_cementitious_feedstocks
+    display_name: Recycled Cementitious Feedstocks
+    parent: clinker_feedstock_decarbonization
+    level: sub_subcategory
+    definition: Recovered cement paste or concrete fines reclinkered or used as kiln feedstock.
+    inclusion_criteria:
+    - reclinkered cement paste
+    - electric cement recycling as feedstock
+    exclusion_criteria:
+    - Recycled cement paste used directly as SCM
+    representative_synonyms:
+    - recovered cement paste feedstock
+    - reclinkering
+    representative_technology_variants:
+    - Recovered Cement Paste
+    - Recycled Concrete Fines
+    - Reclinkered Cement Paste
+    - Electric Cement Recycling
+    expected_technology_domain: Clinker Feedstock
+    allowed_functional_roles:
+    - Clinker Feedstock
+    positive_screening_cues:
+    - recovered cement paste feedstock
+    - reclinkering
+    negative_screening_cues: []
+    retrieval_query_terms:
+    - recovered cement paste feedstock
+    - reclinkering
+  - slug: composite_waste_feedstocks
+    display_name: Composite Waste Feedstocks
+    parent: clinker_feedstock_decarbonization
+    level: sub_subcategory
+    definition: Composite material wastes used as clinker raw feed.
+    inclusion_criteria:
+    - wind-turbine blade feedstock
+    - fiberglass-containing feedstock
+    exclusion_criteria:
+    - Composite wastes used only as aggregate
+    representative_synonyms:
+    - composite waste feedstock
+    - FRP waste feedstock
+    representative_technology_variants:
+    - Wind-Turbine Blade Feedstock
+    - Composite-Material Waste Feedstock
+    - Fiberglass-Containing Feedstock
+    expected_technology_domain: Clinker Feedstock
+    allowed_functional_roles:
+    - Clinker Feedstock
+    positive_screening_cues:
+    - composite waste feedstock
+    - FRP waste feedstock
+    negative_screening_cues: []
+    retrieval_query_terms:
+    - composite waste feedstock
+    - FRP waste feedstock
+  - slug: alternative_mineral_feedstocks
+    display_name: Alternative Mineral Feedstocks
+    parent: clinker_feedstock_decarbonization
+    level: sub_subcategory
+    definition: Non-waste alternative minerals used to reduce carbonate limestone demand.
+    inclusion_criteria:
+    - calcium silicate rock feedstock
+    - non-carbonate calcium feedstock
+    exclusion_criteria:
+    - Standard limestone quarrying without alternative feedstock framing
+    representative_synonyms:
+    - alternative mineral feedstock
+    - non-carbonate calcium
+    representative_technology_variants:
+    - Calcium Silicate Rock Feedstock
+    - Non-Carbonate Calcium Feedstock
+    - Synthetic Limestone Feedstock
+    expected_technology_domain: Clinker Feedstock
+    allowed_functional_roles:
+    - Clinker Feedstock
+    positive_screening_cues:
+    - alternative mineral feedstock
+    - non-carbonate calcium
+    negative_screening_cues: []
+    retrieval_query_terms:
+    - alternative mineral feedstock
+    - non-carbonate calcium
+- slug: cement_manufacturing_efficiency
+  display_name: Cement Manufacturing Efficiency
+  parent: cementitious_materials
+  level: subcategory
+  definition: Process, fuel, and digital efficiency improvements in cement manufacturing.
+  inclusion_criteria:
+  - grinding efficiency
+  - kiln fuel substitution
+  - WHR
+  - AI kiln control
+  exclusion_criteria:
+  - Carbon capture systems
+  - SCM materials
+  - biomass ash as SCM
+  representative_synonyms:
+  - cement plant efficiency
+  - kiln efficiency
+  representative_technology_variants: []
+  expected_technology_domain: Cement Manufacturing Process
+  allowed_functional_roles:
+  - Manufacturing Process
+  - Kiln Fuel
+  positive_screening_cues:
+  - cement plant efficiency
+  - kiln efficiency
+  negative_screening_cues:
+  - carbon capture
+  - SCM
+  - cement replacement
+  retrieval_query_terms:
+  - cement plant efficiency
+  - kiln efficiency
+  children:
+  - slug: raw_meal_grinding_efficiency
+    display_name: Raw Meal Grinding Efficiency
+    parent: cement_manufacturing_efficiency
+    level: sub_subcategory
+    definition: Improvements to raw-meal grinding energy and fineness control.
+    inclusion_criteria:
+    - High-Pressure Grinding Rolls
+    - Vertical Roller Mills
+    - Efficient Ball Mills
+    - Roller Presses
+    - Grinding-Aid Optimization
+    - Particle-Size Optimization
+    exclusion_criteria:
+    - Unrelated construction processes
+    representative_synonyms:
+    - raw meal grinding efficiency
+    - high-pressure grinding rolls
+    - vertical roller mills
+    - efficient ball mills
+    representative_technology_variants:
+    - High-Pressure Grinding Rolls
+    - Vertical Roller Mills
+    - Efficient Ball Mills
+    - Roller Presses
+    - Grinding-Aid Optimization
+    - Particle-Size Optimization
+    expected_technology_domain: Cement Manufacturing Process
+    allowed_functional_roles:
+    - Manufacturing Process
+    positive_screening_cues:
+    - raw meal grinding efficiency
+    - high-pressure grinding rolls
+    - vertical roller mills
+    - efficient ball mills
+    negative_screening_cues: []
+    retrieval_query_terms:
+    - raw meal grinding efficiency
+    - high-pressure grinding rolls
+    - vertical roller mills
+    - efficient ball mills
+  - slug: clinker_milling_efficiency
+    display_name: Clinker Milling Efficiency
+    parent: cement_manufacturing_efficiency
+    level: sub_subcategory
+    definition: Improvements to finish grinding of clinker/cement.
+    inclusion_criteria:
+    - High-Pressure Grinding Rolls
+    - Vertical Roller Mills
+    - Efficient Finish Grinding
+    - Separator Optimization
+    - Closed-Circuit Grinding
+    exclusion_criteria:
+    - Unrelated construction processes
+    representative_synonyms:
+    - clinker milling efficiency
+    - high-pressure grinding rolls
+    - vertical roller mills
+    - efficient finish grinding
+    representative_technology_variants:
+    - High-Pressure Grinding Rolls
+    - Vertical Roller Mills
+    - Efficient Finish Grinding
+    - Separator Optimization
+    - Closed-Circuit Grinding
+    expected_technology_domain: Cement Manufacturing Process
+    allowed_functional_roles:
+    - Manufacturing Process
+    positive_screening_cues:
+    - clinker milling efficiency
+    - high-pressure grinding rolls
+    - vertical roller mills
+    - efficient finish grinding
+    negative_screening_cues: []
+    retrieval_query_terms:
+    - clinker milling efficiency
+    - high-pressure grinding rolls
+    - vertical roller mills
+    - efficient finish grinding
+  - slug: kiln_fuel_substitution
+    display_name: Kiln Fuel Substitution
+    parent: cement_manufacturing_efficiency
+    level: sub_subcategory
+    definition: Replacement of fossil kiln fuels with alternative or waste fuels.
+    inclusion_criteria:
+    - Biomass Fuel
+    - Biogenic Waste Fuel
+    - Non-Biogenic Waste Fuel
+    - Refuse-Derived Fuel
+    - Waste Tires
+    - Alternative Liquid Fuel
+    - Alternative Solid Fuel
+    exclusion_criteria: &id001
+    - biomass ash used as SCM
+    - biomass ash cement replacement
+    - pozzolanic biomass ash
+    representative_synonyms:
+    - kiln fuel substitution
+    - biomass fuel
+    - biogenic waste fuel
+    - non-biogenic waste fuel
+    representative_technology_variants:
+    - Biomass Fuel
+    - Biogenic Waste Fuel
+    - Non-Biogenic Waste Fuel
+    - Refuse-Derived Fuel
+    - Waste Tires
+    - Alternative Liquid Fuel
+    - Alternative Solid Fuel
+    expected_technology_domain: Cement Manufacturing Process
+    allowed_functional_roles:
+    - Manufacturing Process
+    - Kiln Fuel
+    positive_screening_cues:
+    - kiln fuel substitution
+    - biomass fuel
+    - biogenic waste fuel
+    - non-biogenic waste fuel
+    negative_screening_cues: *id001
+    retrieval_query_terms:
+    - kiln fuel substitution
+    - biomass fuel
+    - biogenic waste fuel
+    - non-biogenic waste fuel
+  - slug: kiln_electrification
+    display_name: Kiln Electrification
+    parent: cement_manufacturing_efficiency
+    level: sub_subcategory
+    definition: Electrified heating pathways for calcination or clinkering.
+    inclusion_criteria:
+    - Electric Resistance Heating
+    - Plasma Heating
+    - Electric Calcination
+    - Electrified Thermal Storage
+    - Indirect Electric Heating
+    exclusion_criteria:
+    - Unrelated construction processes
+    representative_synonyms:
+    - kiln electrification
+    - electric resistance heating
+    - plasma heating
+    - electric calcination
+    representative_technology_variants:
+    - Electric Resistance Heating
+    - Plasma Heating
+    - Electric Calcination
+    - Electrified Thermal Storage
+    - Indirect Electric Heating
+    expected_technology_domain: Cement Manufacturing Process
+    allowed_functional_roles:
+    - Manufacturing Process
+    positive_screening_cues:
+    - kiln electrification
+    - electric resistance heating
+    - plasma heating
+    - electric calcination
+    negative_screening_cues: []
+    retrieval_query_terms:
+    - kiln electrification
+    - electric resistance heating
+    - plasma heating
+    - electric calcination
+  - slug: solar_thermal_kiln_heating
+    display_name: Solar Thermal Kiln Heating
+    parent: cement_manufacturing_efficiency
+    level: sub_subcategory
+    definition: Concentrated solar thermal energy for kiln or calciner heating.
+    inclusion_criteria:
+    - Concentrated Solar Thermal
+    - Solar Calcination
+    - Solar-Assisted Clinker Production
+    exclusion_criteria:
+    - Unrelated construction processes
+    representative_synonyms:
+    - solar thermal kiln heating
+    - concentrated solar thermal
+    - solar calcination
+    - solar-assisted clinker production
+    representative_technology_variants:
+    - Concentrated Solar Thermal
+    - Solar Calcination
+    - Solar-Assisted Clinker Production
+    expected_technology_domain: Cement Manufacturing Process
+    allowed_functional_roles:
+    - Manufacturing Process
+    positive_screening_cues:
+    - solar thermal kiln heating
+    - concentrated solar thermal
+    - solar calcination
+    - solar-assisted clinker production
+    negative_screening_cues: []
+    retrieval_query_terms:
+    - solar thermal kiln heating
+    - concentrated solar thermal
+    - solar calcination
+    - solar-assisted clinker production
+  - slug: hydrogen_based_kiln_heating
+    display_name: Hydrogen-Based Kiln Heating
+    parent: cement_manufacturing_efficiency
+    level: sub_subcategory
+    definition: Hydrogen combustion or plasma as kiln thermal energy.
+    inclusion_criteria:
+    - Hydrogen Combustion
+    - Hydrogen Plasma
+    - Green-Hydrogen Kiln Fuel
+    exclusion_criteria:
+    - Unrelated construction processes
+    representative_synonyms:
+    - hydrogen-based kiln heating
+    - hydrogen combustion
+    - hydrogen plasma
+    - green-hydrogen kiln fuel
+    representative_technology_variants:
+    - Hydrogen Combustion
+    - Hydrogen Plasma
+    - Green-Hydrogen Kiln Fuel
+    expected_technology_domain: Cement Manufacturing Process
+    allowed_functional_roles:
+    - Manufacturing Process
+    positive_screening_cues:
+    - hydrogen-based kiln heating
+    - hydrogen combustion
+    - hydrogen plasma
+    - green-hydrogen kiln fuel
+    negative_screening_cues: []
+    retrieval_query_terms:
+    - hydrogen-based kiln heating
+    - hydrogen combustion
+    - hydrogen plasma
+    - green-hydrogen kiln fuel
+  - slug: waste_heat_recovery
+    display_name: Waste Heat Recovery
+    parent: cement_manufacturing_efficiency
+    level: sub_subcategory
+    definition: Recovery of kiln or cooler heat for process or power uses.
+    inclusion_criteria:
+    - Clinker Cooler Heat Recovery
+    - Kiln Exhaust Heat Recovery
+    - Raw Meal Preheating
+    - Steam Generation
+    - Electricity Cogeneration
+    - Organic Rankine Cycle
+    exclusion_criteria:
+    - Unrelated construction processes
+    representative_synonyms:
+    - waste heat recovery
+    - clinker cooler heat recovery
+    - kiln exhaust heat recovery
+    - raw meal preheating
+    representative_technology_variants:
+    - Clinker Cooler Heat Recovery
+    - Kiln Exhaust Heat Recovery
+    - Raw Meal Preheating
+    - Steam Generation
+    - Electricity Cogeneration
+    - Organic Rankine Cycle
+    expected_technology_domain: Cement Manufacturing Process
+    allowed_functional_roles:
+    - Manufacturing Process
+    positive_screening_cues:
+    - waste heat recovery
+    - clinker cooler heat recovery
+    - kiln exhaust heat recovery
+    - raw meal preheating
+    negative_screening_cues: []
+    retrieval_query_terms:
+    - waste heat recovery
+    - clinker cooler heat recovery
+    - kiln exhaust heat recovery
+    - raw meal preheating
+  - slug: kiln_technology_upgrades
+    display_name: Kiln Technology Upgrades
+    parent: cement_manufacturing_efficiency
+    level: sub_subcategory
+    definition: Major kiln line technology upgrades (dry process, precalciner, etc.).
+    inclusion_criteria:
+    - Dry-Process Kiln
+    - Precalciner
+    - Multistage Cyclone Preheater
+    - Modern Clinker Cooler
+    - Kiln Retrofit
+    exclusion_criteria:
+    - Unrelated construction processes
+    representative_synonyms:
+    - kiln technology upgrades
+    - dry-process kiln
+    - precalciner
+    - multistage cyclone preheater
+    representative_technology_variants:
+    - Dry-Process Kiln
+    - Precalciner
+    - Multistage Cyclone Preheater
+    - Modern Clinker Cooler
+    - Kiln Retrofit
+    expected_technology_domain: Cement Manufacturing Process
+    allowed_functional_roles:
+    - Manufacturing Process
+    positive_screening_cues:
+    - kiln technology upgrades
+    - dry-process kiln
+    - precalciner
+    - multistage cyclone preheater
+    negative_screening_cues: []
+    retrieval_query_terms:
+    - kiln technology upgrades
+    - dry-process kiln
+    - precalciner
+    - multistage cyclone preheater
+  - slug: kiln_thermal_efficiency_improvements
+    display_name: Kiln Thermal-Efficiency Improvements
+    parent: cement_manufacturing_efficiency
+    level: sub_subcategory
+    definition: Operational and refractory improvements reducing kiln heat loss.
+    inclusion_criteria:
+    - Kiln Insulation
+    - Low-Thermal-Conductivity Refractory
+    - High-Performance Refractory
+    - Reduced Shell Heat Loss
+    - Burner Optimization
+    - Airflow Optimization
+    - Variable-Speed Exhaust Fans
+    - Temperature-Control Optimization
+    exclusion_criteria:
+    - Unrelated construction processes
+    representative_synonyms:
+    - kiln thermal-efficiency improvements
+    - kiln insulation
+    - low-thermal-conductivity refractory
+    - high-performance refractory
+    representative_technology_variants:
+    - Kiln Insulation
+    - Low-Thermal-Conductivity Refractory
+    - High-Performance Refractory
+    - Reduced Shell Heat Loss
+    - Burner Optimization
+    - Airflow Optimization
+    - Variable-Speed Exhaust Fans
+    - Temperature-Control Optimization
+    expected_technology_domain: Cement Manufacturing Process
+    allowed_functional_roles:
+    - Manufacturing Process
+    positive_screening_cues:
+    - kiln thermal-efficiency improvements
+    - kiln insulation
+    - low-thermal-conductivity refractory
+    - high-performance refractory
+    negative_screening_cues: []
+    retrieval_query_terms:
+    - kiln thermal-efficiency improvements
+    - kiln insulation
+    - low-thermal-conductivity refractory
+    - high-performance refractory
+  - slug: digital_and_ai_process_optimization
+    display_name: Digital and AI Process Optimization
+    parent: cement_manufacturing_efficiency
+    level: sub_subcategory
+    definition: Digital twins, MPC, and AI control for cement manufacturing.
+    inclusion_criteria:
+    - AI-Driven Kiln Control
+    - AI-Driven Grinding Optimization
+    - Model-Predictive Control
+    - Digital Twin
+    - Real-Time Process Optimization
+    - Advanced Sensor Control
+    - Variable-Speed Process Control
+    exclusion_criteria:
+    - Unrelated construction processes
+    representative_synonyms:
+    - digital and ai process optimization
+    - ai-driven kiln control
+    - ai-driven grinding optimization
+    - model-predictive control
+    representative_technology_variants:
+    - AI-Driven Kiln Control
+    - AI-Driven Grinding Optimization
+    - Model-Predictive Control
+    - Digital Twin
+    - Real-Time Process Optimization
+    - Advanced Sensor Control
+    - Variable-Speed Process Control
+    expected_technology_domain: Cement Manufacturing Process
+    allowed_functional_roles:
+    - Manufacturing Process
+    positive_screening_cues:
+    - digital and ai process optimization
+    - ai-driven kiln control
+    - ai-driven grinding optimization
+    - model-predictive control
+    negative_screening_cues: []
+    retrieval_query_terms:
+    - digital and ai process optimization
+    - ai-driven kiln control
+    - ai-driven grinding optimization
+    - model-predictive control
+- slug: cement_plant_carbon_capture
+  display_name: Cement-Plant Carbon Capture
+  parent: cementitious_materials
+  level: subcategory
+  definition: Point-source carbon capture technologies applied at cement plants.
+  inclusion_criteria:
+  - amine capture
+  - oxy-fuel
+  - membrane
+  - Ca-looping
+  - LEILAC
+  - cryogenic
+  exclusion_criteria:
+  - CCUS utilization without capture
+  - DAC not at cement plant
+  representative_synonyms:
+  - cement CCS
+  - cement plant carbon capture
+  representative_technology_variants: []
+  expected_technology_domain: Carbon Capture Process
+  allowed_functional_roles:
+  - Carbon Capture System
+  positive_screening_cues:
+  - cement CCS
+  - cement plant carbon capture
+  negative_screening_cues: []
+  retrieval_query_terms:
+  - cement CCS
+  - cement plant carbon capture
+  children:
+  - slug: chemical_absorption
+    display_name: Chemical Absorption
+    parent: cement_plant_carbon_capture
+    level: sub_subcategory
+    definition: Post-combustion solvent / chemical absorption CO2 capture at cement plants.
+    inclusion_criteria:
+    - amine
+    - solvent-based capture
+    - chemical absorption
+    - MEA
+    - Aqueous Amine Solvent
+    - Non-Aqueous Solvent
+    - Advanced Amine Solvent
+    - Post-Combustion Solvent Capture
+    exclusion_criteria:
+    - Mineralization as utilization only without capture framing
+    - DAC unrelated to cement plant
+    representative_synonyms:
+    - amine
+    - solvent-based capture
+    - chemical absorption
+    - MEA
+    representative_technology_variants:
+    - Aqueous Amine Solvent
+    - Non-Aqueous Solvent
+    - Advanced Amine Solvent
+    - Post-Combustion Solvent Capture
+    expected_technology_domain: Carbon Capture Process
+    allowed_functional_roles:
+    - Carbon Capture System
+    positive_screening_cues:
+    - amine
+    - solvent-based capture
+    - chemical absorption
+    - MEA
+    negative_screening_cues: []
+    retrieval_query_terms:
+    - amine
+    - solvent-based capture
+    - chemical absorption
+    - MEA
+  - slug: cryogenic_carbon_capture
+    display_name: Cryogenic Carbon Capture
+    parent: cement_plant_carbon_capture
+    level: sub_subcategory
+    definition: Cryogenic separation or purification of CO2 from cement flue gas.
+    inclusion_criteria:
+    - cryogenic
+    - cryogenic carbon capture
+    - Pressure Swing Adsorption with Cryogenic Purification
+    - Cryogenic Separation
+    - Cryogenic Compression and Purification
+    exclusion_criteria:
+    - Mineralization as utilization only without capture framing
+    - DAC unrelated to cement plant
+    representative_synonyms:
+    - cryogenic
+    - cryogenic carbon capture
+    representative_technology_variants:
+    - Pressure Swing Adsorption with Cryogenic Purification
+    - Cryogenic Separation
+    - Cryogenic Compression and Purification
+    expected_technology_domain: Carbon Capture Process
+    allowed_functional_roles:
+    - Carbon Capture System
+    positive_screening_cues:
+    - cryogenic
+    - cryogenic carbon capture
+    negative_screening_cues: []
+    retrieval_query_terms:
+    - cryogenic
+    - cryogenic carbon capture
+  - slug: oxy_fuel_combustion
+    display_name: Oxy-Fuel Combustion
+    parent: cement_plant_carbon_capture
+    level: sub_subcategory
+    definition: Oxygen-enriched or full oxy-fuel combustion for cement kilns.
+    inclusion_criteria:
+    - oxy-fuel
+    - oxyfuel
+    - oxygen-enriched combustion
+    - Partial Oxy-Fuel
+    - Full Oxy-Fuel
+    - Pressurized Oxy-Fuel
+    - Oxygen-Enriched Combustion
+    exclusion_criteria:
+    - Mineralization as utilization only without capture framing
+    - DAC unrelated to cement plant
+    representative_synonyms:
+    - oxy-fuel
+    - oxyfuel
+    - oxygen-enriched combustion
+    representative_technology_variants:
+    - Partial Oxy-Fuel
+    - Full Oxy-Fuel
+    - Pressurized Oxy-Fuel
+    - Oxygen-Enriched Combustion
+    expected_technology_domain: Carbon Capture Process
+    allowed_functional_roles:
+    - Carbon Capture System
+    positive_screening_cues:
+    - oxy-fuel
+    - oxyfuel
+    - oxygen-enriched combustion
+    negative_screening_cues: []
+    retrieval_query_terms:
+    - oxy-fuel
+    - oxyfuel
+    - oxygen-enriched combustion
+  - slug: membrane_separation
+    display_name: Membrane Separation
+    parent: cement_plant_carbon_capture
+    level: sub_subcategory
+    definition: Membrane-based CO2 separation from cement flue gas.
+    inclusion_criteria:
+    - membrane separation
+    - CO2 membrane
+    - Polymeric Membrane
+    - Inorganic Membrane
+    - Hybrid Membrane System
+    - Multi-Stage Membrane Separation
+    exclusion_criteria:
+    - Mineralization as utilization only without capture framing
+    - DAC unrelated to cement plant
+    representative_synonyms:
+    - membrane separation
+    - CO2 membrane
+    representative_technology_variants:
+    - Polymeric Membrane
+    - Inorganic Membrane
+    - Hybrid Membrane System
+    - Multi-Stage Membrane Separation
+    expected_technology_domain: Carbon Capture Process
+    allowed_functional_roles:
+    - Carbon Capture System
+    positive_screening_cues:
+    - membrane separation
+    - CO2 membrane
+    negative_screening_cues: []
+    retrieval_query_terms:
+    - membrane separation
+    - CO2 membrane
+  - slug: calcium_looping
+    display_name: Calcium Looping
+    parent: cement_plant_carbon_capture
+    level: sub_subcategory
+    definition: CaO/CaCO3 looping carbon capture integrated with cement plants.
+    inclusion_criteria:
+    - calcium looping
+    - Ca-looping
+    - CaL
+    - Tail-End Calcium Looping
+    - Integrated Calcium Looping
+    - Indirect Calcium Looping
+    - Solar-Assisted Calcium Looping
+    exclusion_criteria:
+    - Mineralization as utilization only without capture framing
+    - DAC unrelated to cement plant
+    representative_synonyms:
+    - calcium looping
+    - Ca-looping
+    - CaL
+    representative_technology_variants:
+    - Tail-End Calcium Looping
+    - Integrated Calcium Looping
+    - Indirect Calcium Looping
+    - Solar-Assisted Calcium Looping
+    expected_technology_domain: Carbon Capture Process
+    allowed_functional_roles:
+    - Carbon Capture System
+    positive_screening_cues:
+    - calcium looping
+    - Ca-looping
+    - CaL
+    negative_screening_cues: []
+    retrieval_query_terms:
+    - calcium looping
+    - Ca-looping
+    - CaL
+  - slug: direct_separation
+    display_name: Direct Separation
+    parent: cement_plant_carbon_capture
+    level: sub_subcategory
+    definition: Indirectly heated calciner / LEILAC-type direct separation of process CO2.
+    inclusion_criteria:
+    - direct separation
+    - LEILAC
+    - Indirectly Heated Calciner
+    - LEILAC-Type Direct Separation
+    - Electrically Heated Direct Separation
+    exclusion_criteria:
+    - Mineralization as utilization only without capture framing
+    - DAC unrelated to cement plant
+    representative_synonyms:
+    - direct separation
+    - LEILAC
+    representative_technology_variants:
+    - Indirectly Heated Calciner
+    - LEILAC-Type Direct Separation
+    - Electrically Heated Direct Separation
+    expected_technology_domain: Carbon Capture Process
+    allowed_functional_roles:
+    - Carbon Capture System
+    positive_screening_cues:
+    - direct separation
+    - LEILAC
+    negative_screening_cues: []
+    retrieval_query_terms:
+    - direct separation
+    - LEILAC
+- slug: alternative_cement_chemistries
+  display_name: Alternative Cement Chemistries
+  parent: cementitious_materials
+  level: subcategory
+  definition: Non-Portland or substantially alternative binder chemistries.
+  inclusion_criteria:
+  - alkali-activated
+  - CSA
+  - MgO cement
+  - biocement
+  - carbonatable calcium silicate
+  exclusion_criteria:
+  - OPC with SCM replacement only
+  representative_synonyms:
+  - alternative cement
+  - non-Portland binder
+  - geopolymer
+  representative_technology_variants: []
+  expected_technology_domain: Cement or Binder
+  allowed_functional_roles:
+  - Complete Binder
+  positive_screening_cues:
+  - alternative cement
+  - non-Portland binder
+  - geopolymer
+  negative_screening_cues:
+  - Portland cement replacement only
+  - SCM in OPC concrete
+  retrieval_query_terms:
+  - alternative cement
+  - non-Portland binder
+  - geopolymer
+  children:
+  - slug: calcium_silicate_cements
+    display_name: Calcium Silicate Cements
+    parent: alternative_cement_chemistries
+    level: sub_subcategory
+    definition: Non-Portland calcium silicate binder chemistries.
+    inclusion_criteria:
+    - Electrochemical Calcium Silicate Cement
+    - Calcium Silicate Rock-Derived Cement
+    - Carbonatable Calcium Silicate Cement
+    - Low-Lime Calcium Silicate Cement
+    - Wollastonite-Based Cement
+    - Chemically Leached Calcium Silicate Cement
+    exclusion_criteria:
+    - OPC-based systems
+    - SCM used only in Portland concrete
+    representative_synonyms:
+    - calcium silicate cements
+    - electrochemical calcium silicate cement
+    - calcium silicate rock-derived cement
+    - carbonatable calcium silicate cement
+    representative_technology_variants:
+    - Electrochemical Calcium Silicate Cement
+    - Calcium Silicate Rock-Derived Cement
+    - Carbonatable Calcium Silicate Cement
+    - Low-Lime Calcium Silicate Cement
+    - Wollastonite-Based Cement
+    - Chemically Leached Calcium Silicate Cement
+    expected_technology_domain: Cement or Binder
+    allowed_functional_roles:
+    - Complete Binder
+    positive_screening_cues:
+    - calcium silicate cements
+    - electrochemical calcium silicate cement
+    - calcium silicate rock-derived cement
+    - carbonatable calcium silicate cement
+    negative_screening_cues: []
+    retrieval_query_terms:
+    - calcium silicate cements
+    - electrochemical calcium silicate cement
+    - calcium silicate rock-derived cement
+    - carbonatable calcium silicate cement
+  - slug: belite_and_calcium_sulfoaluminate_cements
+    display_name: Belite and Calcium Sulfoaluminate Cements
+    parent: alternative_cement_chemistries
+    level: sub_subcategory
+    definition: Belite-rich and CSA / BCSA alternative cement chemistries.
+    inclusion_criteria:
+    - Belite Calcium Sulfoaluminate Cement
+    - BCSA Cement
+    - Calcium Sulfoaluminate Cement
+    - Belite-Rich Cement
+    - Belite Calcium Sulfoaluminate Ferrite Cement
+    - Ye'elimite-Rich Cement
+    - Waste-Derived BCSA Cement
+    exclusion_criteria:
+    - OPC-based systems
+    - SCM used only in Portland concrete
+    representative_synonyms:
+    - belite and calcium sulfoaluminate cements
+    - belite calcium sulfoaluminate cement
+    - bcsa cement
+    - calcium sulfoaluminate cement
+    representative_technology_variants:
+    - Belite Calcium Sulfoaluminate Cement
+    - BCSA Cement
+    - Calcium Sulfoaluminate Cement
+    - Belite-Rich Cement
+    - Belite Calcium Sulfoaluminate Ferrite Cement
+    - Ye'elimite-Rich Cement
+    - Waste-Derived BCSA Cement
+    expected_technology_domain: Cement or Binder
+    allowed_functional_roles:
+    - Complete Binder
+    positive_screening_cues:
+    - belite and calcium sulfoaluminate cements
+    - belite calcium sulfoaluminate cement
+    - bcsa cement
+    - calcium sulfoaluminate cement
+    negative_screening_cues: []
+    retrieval_query_terms:
+    - belite and calcium sulfoaluminate cements
+    - belite calcium sulfoaluminate cement
+    - bcsa cement
+    - calcium sulfoaluminate cement
+  - slug: reactive_magnesia_cements
+    display_name: Reactive Magnesia Cements
+    parent: alternative_cement_chemistries
+    level: sub_subcategory
+    definition: Reactive MgO and related magnesium binder systems.
+    inclusion_criteria:
+    - Magnesite-Derived Reactive MgO Cement
+    - Magnesium Silicate-Derived MgO Cement
+    - Olivine-Derived MgO Cement
+    - Seawater-Derived MgO Cement
+    - Brine-Derived MgO Cement
+    - Industrial-Residue-Derived MgO Cement
+    - Carbonation-Cured MgO Cement
+    - Magnesium Oxychloride Cement
+    - Magnesium Oxysulfate Cement
+    - Magnesium Carbonate Cement
+    exclusion_criteria:
+    - OPC-based systems
+    - SCM used only in Portland concrete
+    representative_synonyms:
+    - reactive magnesia cements
+    - magnesite-derived reactive mgo cement
+    - magnesium silicate-derived mgo cement
+    - olivine-derived mgo cement
+    representative_technology_variants:
+    - Magnesite-Derived Reactive MgO Cement
+    - Magnesium Silicate-Derived MgO Cement
+    - Olivine-Derived MgO Cement
+    - Seawater-Derived MgO Cement
+    - Brine-Derived MgO Cement
+    - Industrial-Residue-Derived MgO Cement
+    - Carbonation-Cured MgO Cement
+    - Magnesium Oxychloride Cement
+    - Magnesium Oxysulfate Cement
+    - Magnesium Carbonate Cement
+    expected_technology_domain: Cement or Binder
+    allowed_functional_roles:
+    - Complete Binder
+    positive_screening_cues:
+    - reactive magnesia cements
+    - magnesite-derived reactive mgo cement
+    - magnesium silicate-derived mgo cement
+    - olivine-derived mgo cement
+    negative_screening_cues: []
+    retrieval_query_terms:
+    - reactive magnesia cements
+    - magnesite-derived reactive mgo cement
+    - magnesium silicate-derived mgo cement
+    - olivine-derived mgo cement
+  - slug: alkali_activated_cements
+    display_name: Alkali-Activated Cements
+    parent: alternative_cement_chemistries
+    level: sub_subcategory
+    definition: Alkali-activated and geopolymer binder systems.
+    inclusion_criteria:
+    - Fly Ash-Based Alkali-Activated Cement
+    - Slag-Based Alkali-Activated Cement
+    - Fly Ash-Slag Alkali-Activated Cement
+    - Metakaolin-Based Alkali-Activated Cement
+    - Calcined-Clay Alkali-Activated Cement
+    - Mine-Tailings Alkali-Activated Cement
+    - Municipal-Ash Alkali-Activated Cement
+    - Hybrid Alkali-Activated Cement
+    - One-Part Alkali-Activated Cement
+    - Two-Part Alkali-Activated Cement
+    - Geopolymer Cement
+    exclusion_criteria:
+    - OPC-based systems
+    - SCM used only in Portland concrete
+    representative_synonyms:
+    - alkali-activated cements
+    - fly ash-based alkali-activated cement
+    - slag-based alkali-activated cement
+    - fly ash-slag alkali-activated cement
+    representative_technology_variants:
+    - Fly Ash-Based Alkali-Activated Cement
+    - Slag-Based Alkali-Activated Cement
+    - Fly Ash-Slag Alkali-Activated Cement
+    - Metakaolin-Based Alkali-Activated Cement
+    - Calcined-Clay Alkali-Activated Cement
+    - Mine-Tailings Alkali-Activated Cement
+    - Municipal-Ash Alkali-Activated Cement
+    - Hybrid Alkali-Activated Cement
+    - One-Part Alkali-Activated Cement
+    - Two-Part Alkali-Activated Cement
+    - Geopolymer Cement
+    expected_technology_domain: Cement or Binder
+    allowed_functional_roles:
+    - Complete Binder
+    - Activator
+    positive_screening_cues:
+    - alkali-activated cements
+    - fly ash-based alkali-activated cement
+    - slag-based alkali-activated cement
+    - fly ash-slag alkali-activated cement
+    negative_screening_cues: []
+    retrieval_query_terms:
+    - alkali-activated cements
+    - fly ash-based alkali-activated cement
+    - slag-based alkali-activated cement
+    - fly ash-slag alkali-activated cement
+  - slug: biocements
+    display_name: Biocements
+    parent: alternative_cement_chemistries
+    level: sub_subcategory
+    definition: Biologically mediated carbonate or binder-producing cement systems.
+    inclusion_criteria:
+    - Microbially Induced Calcium Carbonate Cement
+    - Enzyme-Induced Carbonate Cement
+    - Cyanobacteria-Based Cement
+    - Microalgae-Based Cement
+    - Bacteria-Grown Cement
+    - Biomineralized Cement
+    - Biologically Produced Binder
+    exclusion_criteria:
+    - OPC-based systems
+    - SCM used only in Portland concrete
+    representative_synonyms:
+    - biocements
+    - microbially induced calcium carbonate cement
+    - enzyme-induced carbonate cement
+    - cyanobacteria-based cement
+    representative_technology_variants:
+    - Microbially Induced Calcium Carbonate Cement
+    - Enzyme-Induced Carbonate Cement
+    - Cyanobacteria-Based Cement
+    - Microalgae-Based Cement
+    - Bacteria-Grown Cement
+    - Biomineralized Cement
+    - Biologically Produced Binder
+    expected_technology_domain: Cement or Binder
+    allowed_functional_roles:
+    - Complete Binder
+    positive_screening_cues:
+    - biocements
+    - microbially induced calcium carbonate cement
+    - enzyme-induced carbonate cement
+    - cyanobacteria-based cement
+    negative_screening_cues: []
+    retrieval_query_terms:
+    - biocements
+    - microbially induced calcium carbonate cement
+    - enzyme-induced carbonate cement
+    - cyanobacteria-based cement
+  - slug: other_alternative_cement_chemistries
+    display_name: Other Alternative Cement Chemistries
+    parent: alternative_cement_chemistries
+    level: sub_subcategory
+    definition: Other non-Portland binders not covered above.
+    inclusion_criteria:
+    - Calcium Aluminate Cement
+    - Calcium Aluminate-Sulfate Cement
+    - Phosphate Cement
+    - Sulfur Cement
+    - Carbonate Cement
+    - Synthetic Calcium Carbonate Cement
+    - Calcium Hydrosilicate Cement
+    - Other Non-Portland Binder
+    exclusion_criteria:
+    - OPC-based systems
+    - SCM used only in Portland concrete
+    representative_synonyms:
+    - other alternative cement chemistries
+    - calcium aluminate cement
+    - calcium aluminate-sulfate cement
+    - phosphate cement
+    representative_technology_variants:
+    - Calcium Aluminate Cement
+    - Calcium Aluminate-Sulfate Cement
+    - Phosphate Cement
+    - Sulfur Cement
+    - Carbonate Cement
+    - Synthetic Calcium Carbonate Cement
+    - Calcium Hydrosilicate Cement
+    - Other Non-Portland Binder
+    expected_technology_domain: Cement or Binder
+    allowed_functional_roles:
+    - Complete Binder
+    positive_screening_cues:
+    - other alternative cement chemistries
+    - calcium aluminate cement
+    - calcium aluminate-sulfate cement
+    - phosphate cement
+    negative_screening_cues: []
+    retrieval_query_terms:
+    - other alternative cement chemistries
+    - calcium aluminate cement
+    - calcium aluminate-sulfate cement
+    - phosphate cement
+- slug: conventional_supplementary_cementitious_materials
+  display_name: Conventional Supplementary Cementitious Materials
+  parent: cementitious_materials
+  level: subcategory
+  definition: Established SCMs used as cement or clinker replacements in Portland systems.
+  inclusion_criteria:
+  - slag
+  - coal ash
+  - silica fume
+  - natural pozzolan
+  - glass pozzolan
+  - calcined clay as SCM
+  exclusion_criteria:
+  - Factory LC3 product
+  - alkali-activated binders
+  - aggregate-only applications
+  representative_synonyms:
+  - SCM
+  - supplementary cementitious material
+  - pozzolan
+  representative_technology_variants: []
+  expected_technology_domain: Supplementary Cementitious Material
+  allowed_functional_roles:
+  - Cement Replacement
+  - Pozzolanic SCM
+  - Hydraulic SCM
+  - Latent Hydraulic SCM
+  positive_screening_cues:
+  - SCM
+  - supplementary cementitious material
+  - pozzolan
+  negative_screening_cues:
+  - aggregate only
+  - geopolymer binder
+  - LC3 factory cement
+  retrieval_query_terms:
+  - SCM
+  - supplementary cementitious material
+  - pozzolan
+  children:
+  - slug: slag_cement
+    display_name: Slag Cement
+    parent: conventional_supplementary_cementitious_materials
+    level: sub_subcategory
+    definition: Blast-furnace slag used as a conventional SCM.
+    inclusion_criteria:
+    - cement replacement
+    - SCM
+    - pozzolanic addition
+    exclusion_criteria:
+    - aggregate-only use
+    - alkali-activated precursor as complete binder
+    representative_synonyms:
+    - GGBFS
+    - slag cement
+    - blast furnace slag
+    representative_technology_variants:
+    - Ground Granulated Blast-Furnace Slag
+    - GGBFS
+    - GGBS
+    - Granulated Blast-Furnace Slag
+    - Ground Granulated Blast-Furnace Slag Cement
+    - Pelletized Blast-Furnace Slag
+    expected_technology_domain: Supplementary Cementitious Material
+    allowed_functional_roles:
+    - Cement Replacement
+    - Pozzolanic SCM
+    - Hydraulic SCM
+    - Latent Hydraulic SCM
+    - Clinker Replacement
+    positive_screening_cues:
+    - GGBFS
+    - slag cement
+    - blast furnace slag
+    negative_screening_cues:
+    - aggregate
+    - road base
+    - alkali-activated cement
+    retrieval_query_terms:
+    - GGBFS
+    - slag cement
+    - blast furnace slag
+  - slug: coal_ash
+    display_name: Coal Ash
+    parent: conventional_supplementary_cementitious_materials
+    level: sub_subcategory
+    definition: Coal combustion ashes used as conventional SCMs, including harvested ashes.
+    inclusion_criteria:
+    - cement replacement
+    - SCM
+    - pozzolanic addition
+    exclusion_criteria:
+    - aggregate-only use
+    - alkali-activated precursor as complete binder
+    representative_synonyms:
+    - fly ash
+    - coal ash
+    - bottom ash
+    - harvested ash
+    representative_technology_variants:
+    - Coal Fly Ash
+    - Coal Bottom Ash
+    - Harvested Coal Ash
+    - Harvested Coal Fly Ash
+    - Harvested Coal Bottom Ash
+    - Ponded Coal Ash
+    - Landfilled Coal Ash
+    - Beneficiated Coal Ash
+    - Class F Coal Fly Ash
+    - Class C Coal Fly Ash
+    - High-Calcium Coal Fly Ash
+    - Low-Calcium Coal Fly Ash
+    - Off-Specification Coal Ash
+    expected_technology_domain: Supplementary Cementitious Material
+    allowed_functional_roles:
+    - Cement Replacement
+    - Pozzolanic SCM
+    - Hydraulic SCM
+    - Latent Hydraulic SCM
+    - Clinker Replacement
+    positive_screening_cues:
+    - fly ash
+    - coal ash
+    - bottom ash
+    - harvested ash
+    negative_screening_cues:
+    - aggregate
+    - road base
+    - alkali-activated cement
+    retrieval_query_terms:
+    - fly ash
+    - coal ash
+    - bottom ash
+    - harvested ash
+  - slug: silica_fume
+    display_name: Silica Fume
+    parent: conventional_supplementary_cementitious_materials
+    level: sub_subcategory
+    definition: Silica fume / microsilica used as a conventional SCM.
+    inclusion_criteria:
+    - cement replacement
+    - SCM
+    - pozzolanic addition
+    exclusion_criteria:
+    - aggregate-only use
+    - alkali-activated precursor as complete binder
+    representative_synonyms:
+    - silica fume
+    - microsilica
+    representative_technology_variants:
+    - Silica Fume
+    - Microsilica
+    - Condensed Silica Fume
+    - Undensified Silica Fume
+    - Densified Silica Fume
+    - Ferrosilicon Silica Fume
+    - Silicon-Metal Silica Fume
+    expected_technology_domain: Supplementary Cementitious Material
+    allowed_functional_roles:
+    - Cement Replacement
+    - Pozzolanic SCM
+    - Hydraulic SCM
+    - Latent Hydraulic SCM
+    - Clinker Replacement
+    positive_screening_cues:
+    - silica fume
+    - microsilica
+    negative_screening_cues:
+    - aggregate
+    - road base
+    - alkali-activated cement
+    retrieval_query_terms:
+    - silica fume
+    - microsilica
+  - slug: natural_pozzolans
+    display_name: Natural Pozzolans
+    parent: conventional_supplementary_cementitious_materials
+    level: sub_subcategory
+    definition: Naturally occurring pozzolanic materials used as SCMs.
+    inclusion_criteria:
+    - cement replacement
+    - SCM
+    - pozzolanic addition
+    exclusion_criteria:
+    - aggregate-only use
+    - alkali-activated precursor as complete binder
+    representative_synonyms:
+    - natural pozzolan
+    - volcanic ash
+    - pumice
+    representative_technology_variants:
+    - Volcanic Ash
+    - Pumice
+    - Pumicite
+    - Volcanic Tuff
+    - Scoria
+    - Perlite
+    - Diatomaceous Earth
+    - Opaline Shale
+    - Natural Silicate Pozzolan
+    - Basaltic Pozzolan
+    - Granite-Derived Pozzolan
+    expected_technology_domain: Supplementary Cementitious Material
+    allowed_functional_roles:
+    - Cement Replacement
+    - Pozzolanic SCM
+    - Hydraulic SCM
+    - Latent Hydraulic SCM
+    - Clinker Replacement
+    positive_screening_cues:
+    - natural pozzolan
+    - volcanic ash
+    - pumice
+    negative_screening_cues:
+    - aggregate
+    - road base
+    - alkali-activated cement
+    retrieval_query_terms:
+    - natural pozzolan
+    - volcanic ash
+    - pumice
+  - slug: glass_pozzolans
+    display_name: Glass Pozzolans
+    parent: conventional_supplementary_cementitious_materials
+    level: sub_subcategory
+    definition: Ground glass used as a pozzolanic SCM.
+    inclusion_criteria:
+    - cement replacement
+    - SCM
+    - pozzolanic addition
+    exclusion_criteria:
+    - aggregate-only use
+    - alkali-activated precursor as complete binder
+    representative_synonyms:
+    - ground glass pozzolan
+    - waste glass SCM
+    representative_technology_variants:
+    - Ground Glass Pozzolan
+    - Post-Consumer Glass Pozzolan
+    - Industrial Waste Glass Pozzolan
+    - Container Glass Pozzolan
+    - Flat Glass Pozzolan
+    - Mixed Waste Glass Pozzolan
+    - Glass Fiber Waste Pozzolan
+    expected_technology_domain: Supplementary Cementitious Material
+    allowed_functional_roles:
+    - Cement Replacement
+    - Pozzolanic SCM
+    - Hydraulic SCM
+    - Latent Hydraulic SCM
+    - Clinker Replacement
+    positive_screening_cues:
+    - ground glass pozzolan
+    - waste glass SCM
+    negative_screening_cues:
+    - aggregate
+    - road base
+    - alkali-activated cement
+    retrieval_query_terms:
+    - ground glass pozzolan
+    - waste glass SCM
+  - slug: calcined_clays
+    display_name: Calcined Clays
+    parent: conventional_supplementary_cementitious_materials
+    level: sub_subcategory
+    definition: Calcined clays used directly as SCMs (not factory LC3 product).
+    inclusion_criteria:
+    - cement replacement
+    - SCM
+    - pozzolanic addition
+    exclusion_criteria:
+    - aggregate-only use
+    - alkali-activated precursor as complete binder
+    representative_synonyms:
+    - metakaolin
+    - calcined clay
+    - calcined kaolin
+    representative_technology_variants:
+    - Calcined Kaolinitic Clay
+    - Metakaolin
+    - Flash-Calcined Clay
+    - Calcined Illitic Clay
+    - Calcined Montmorillonitic Clay
+    - Calcined Shale
+    - Low-Grade Calcined Clay
+    expected_technology_domain: Supplementary Cementitious Material
+    allowed_functional_roles:
+    - Cement Replacement
+    - Pozzolanic SCM
+    - Hydraulic SCM
+    - Latent Hydraulic SCM
+    - Clinker Replacement
+    positive_screening_cues:
+    - metakaolin
+    - calcined clay
+    - calcined kaolin
+    negative_screening_cues:
+    - aggregate
+    - road base
+    - alkali-activated cement
+    retrieval_query_terms:
+    - metakaolin
+    - calcined clay
+    - calcined kaolin
+- slug: emerging_supplementary_cementitious_materials
+  display_name: Emerging Supplementary Cementitious Materials
+  parent: cementitious_materials
+  level: subcategory
+  definition: Emerging wastes and processed materials used as SCMs or binder replacements.
+  inclusion_criteria:
+  - biomass ash SCM
+  - mine tailings SCM
+  - carbonated waste SCM
+  - recycled cement paste SCM
+  exclusion_criteria:
+  - aggregate-only
+  - kiln fuel biomass
+  - clinker feedstock use
+  representative_synonyms:
+  - emerging SCM
+  - alternative SCM
+  - waste-derived SCM
+  representative_technology_variants: []
+  expected_technology_domain: Supplementary Cementitious Material
+  allowed_functional_roles:
+  - Cement Replacement
+  - Pozzolanic SCM
+  positive_screening_cues:
+  - emerging SCM
+  - alternative SCM
+  - waste-derived SCM
+  negative_screening_cues:
+  - kiln fuel
+  - aggregate only
+  - soil amendment
+  retrieval_query_terms:
+  - emerging SCM
+  - alternative SCM
+  - waste-derived SCM
+  children:
+  - slug: biomass_ashes
+    display_name: Biomass Ashes
+    parent: emerging_supplementary_cementitious_materials
+    level: sub_subcategory
+    definition: Ashes from biomass combustion used as SCMs.
+    inclusion_criteria:
+    - binder replacement
+    - SCM
+    - reactive cementitious addition
+    exclusion_criteria:
+    - aggregate only
+    - soil amendment
+    - road base
+    - unrelated construction material
+    representative_synonyms: &id002
+    - rice husk ash
+    - bagasse ash
+    - palm oil fuel ash
+    - wood ash
+    - agricultural residue ash
+    - biomass ash cement replacement
+    representative_technology_variants:
+    - Rice Husk Ash
+    - Sugarcane Bagasse Ash
+    - Palm Oil Fuel Ash
+    - Wood Ash
+    - Wood Fly Ash
+    - Wood Bottom Ash
+    - Corn Cob Ash
+    - Corn Stover Ash
+    - Wheat Straw Ash
+    - Bamboo Ash
+    - Sawdust Ash
+    - Paper-Mill Biomass Ash
+    - Mixed Biomass Ash
+    - Agricultural Residue Ash
+    - Biomass Power-Plant Ash
+    - Vitrified Biomass Ash
+    expected_technology_domain: Supplementary Cementitious Material
+    allowed_functional_roles:
+    - Cement Replacement
+    - Pozzolanic SCM
+    - Hydraulic SCM
+    - Clinker Replacement
+    positive_screening_cues: *id002
+    negative_screening_cues:
+    - biomass as kiln fuel
+    - biomass ash used only as aggregate
+    - biomass ash soil amendment
+    - biomass ash disposal without cementitious use
+    retrieval_query_terms:
+    - rice husk ash
+    - bagasse ash
+    - palm oil fuel ash
+    - wood ash
+    - agricultural residue ash
+    - biomass ash cement replacement
+    - rice husk ash
+    - sugarcane bagasse ash
+    - palm oil fuel ash
+    - wood ash
+    - wood fly ash
+  - slug: waste_incineration_ashes
+    display_name: Waste-Incineration Ashes
+    parent: emerging_supplementary_cementitious_materials
+    level: sub_subcategory
+    definition: Incineration ashes used as SCMs.
+    inclusion_criteria:
+    - binder replacement
+    - SCM
+    - reactive cementitious addition
+    exclusion_criteria:
+    - aggregate only
+    - soil amendment
+    - road base
+    - unrelated construction material
+    representative_synonyms: &id003
+    - MSWI ash
+    - sewage sludge ash
+    - waste-to-energy ash
+    representative_technology_variants:
+    - Municipal Solid-Waste Incineration Fly Ash
+    - Municipal Solid-Waste Incineration Bottom Ash
+    - Industrial Solid-Waste Incineration Ash
+    - Hazardous-Waste Incineration Ash
+    - Waste-to-Energy Ash
+    - Sewage-Sludge Ash
+    - Paper-Sludge Ash
+    expected_technology_domain: Supplementary Cementitious Material
+    allowed_functional_roles:
+    - Cement Replacement
+    - Pozzolanic SCM
+    - Hydraulic SCM
+    - Clinker Replacement
+    positive_screening_cues: *id003
+    negative_screening_cues:
+    - ash used only as aggregate
+    - landfill cover only
+    retrieval_query_terms:
+    - MSWI ash
+    - sewage sludge ash
+    - waste-to-energy ash
+    - municipal solid-waste incineration fly ash
+    - municipal solid-waste incineration bottom ash
+    - industrial solid-waste incineration ash
+    - hazardous-waste incineration ash
+    - waste-to-energy ash
+  - slug: mine_tailings
+    display_name: Mine Tailings
+    parent: emerging_supplementary_cementitious_materials
+    level: sub_subcategory
+    definition: Mine tailings used as SCMs after optional activation.
+    inclusion_criteria:
+    - binder replacement
+    - SCM
+    - reactive cementitious addition
+    exclusion_criteria:
+    - aggregate only
+    - soil amendment
+    - road base
+    - unrelated construction material
+    representative_synonyms: &id004
+    - mine tailings SCM
+    - tailings cement replacement
+    representative_technology_variants:
+    - Copper Mine Tailings
+    - Gold Mine Tailings
+    - Iron Ore Tailings
+    - Zinc Mine Tailings
+    - Lead Mine Tailings
+    - Diamond Mine Tailings
+    - Bauxite Tailings
+    - Phosphate Tailings
+    - Tungsten Tailings
+    - Molybdenum Tailings
+    - Nickel Tailings
+    - Lithium Mine Tailings
+    - Oil-Sands Tailings
+    - Mixed Mine Tailings
+    - Beneficiated Mine Tailings
+    - Mechanically Activated Mine Tailings
+    - Thermally Activated Mine Tailings
+    - Carbonated Mine Tailings
+    expected_technology_domain: Supplementary Cementitious Material
+    allowed_functional_roles:
+    - Cement Replacement
+    - Pozzolanic SCM
+    - Hydraulic SCM
+    - Clinker Replacement
+    positive_screening_cues: *id004
+    negative_screening_cues:
+    - tailings as aggregate only
+    - mine backfill only
+    retrieval_query_terms:
+    - mine tailings SCM
+    - tailings cement replacement
+    - copper mine tailings
+    - gold mine tailings
+    - iron ore tailings
+    - zinc mine tailings
+    - lead mine tailings
+  - slug: carbonated_waste_derived_scms
+    display_name: Carbonated Waste-Derived SCMs
+    parent: emerging_supplementary_cementitious_materials
+    level: sub_subcategory
+    definition: Waste materials carbonated and then used as SCMs.
+    inclusion_criteria:
+    - binder replacement
+    - SCM
+    - reactive cementitious addition
+    exclusion_criteria:
+    - aggregate only
+    - soil amendment
+    - road base
+    - unrelated construction material
+    representative_synonyms: &id005
+    - carbonated slag SCM
+    - carbonated fly ash cement replacement
+    representative_technology_variants:
+    - Carbonated Fly Ash
+    - Carbonated Slag
+    - Carbonated Cement Kiln Dust
+    - Carbonated Aggregate Fines
+    - Carbonated Mine Tailings
+    - Carbonated Lime Mud
+    - Carbonated Recycled Concrete Fines
+    - Carbonated Electric Arc Furnace Slag
+    - Carbonated Clay
+    - Multi-Feedstock Carbonated SCM
+    expected_technology_domain: Supplementary Cementitious Material
+    allowed_functional_roles:
+    - Cement Replacement
+    - Pozzolanic SCM
+    - Hydraulic SCM
+    - Clinker Replacement
+    positive_screening_cues: *id005
+    negative_screening_cues:
+    - carbonation curing of concrete only
+    - CO2 storage without SCM use
+    retrieval_query_terms:
+    - carbonated slag SCM
+    - carbonated fly ash cement replacement
+    - carbonated fly ash
+    - carbonated slag
+    - carbonated cement kiln dust
+    - carbonated aggregate fines
+    - carbonated mine tailings
+  - slug: synthetic_calcium_carbonates
+    display_name: Synthetic Calcium Carbonates
+    parent: emerging_supplementary_cementitious_materials
+    level: sub_subcategory
+    definition: Synthetic CaCO3 materials used as reactive cementitious additions/SCMs.
+    inclusion_criteria:
+    - binder replacement
+    - SCM
+    - reactive cementitious addition
+    exclusion_criteria:
+    - aggregate only
+    - soil amendment
+    - road base
+    - unrelated construction material
+    representative_synonyms: &id006
+    - synthetic calcium carbonate SCM
+    - vaterite cement
+    representative_technology_variants:
+    - Vaterite
+    - Synthetic Calcite
+    - Synthetic Aragonite
+    - Precipitated Calcium Carbonate
+    - Flue-Gas-Derived Calcium Carbonate
+    - Waste-Derived Synthetic Calcium Carbonate
+    - Carbon-Negative Calcium Carbonate
+    expected_technology_domain: Supplementary Cementitious Material
+    allowed_functional_roles:
+    - Cement Replacement
+    - Pozzolanic SCM
+    - Hydraulic SCM
+    - Clinker Replacement
+    positive_screening_cues: *id006
+    negative_screening_cues:
+    - inert limestone filler only
+    - aggregate only
+    retrieval_query_terms:
+    - synthetic calcium carbonate SCM
+    - vaterite cement
+    - vaterite
+    - synthetic calcite
+    - synthetic aragonite
+    - precipitated calcium carbonate
+    - flue-gas-derived calcium carbonate
+  - slug: recycled_cementitious_materials
+    display_name: Recycled Cementitious Materials
+    parent: emerging_supplementary_cementitious_materials
+    level: sub_subcategory
+    definition: Recycled cement paste/powder used directly as SCMs.
+    inclusion_criteria:
+    - binder replacement
+    - SCM
+    - reactive cementitious addition
+    exclusion_criteria:
+    - aggregate only
+    - soil amendment
+    - road base
+    - unrelated construction material
+    representative_synonyms: &id007
+    - recycled cement paste SCM
+    - recovered cement fines
+    representative_technology_variants:
+    - Recycled Cement Paste
+    - Recycled Cement Powder
+    - Recovered Cement Fines
+    - Recycled Concrete Powder
+    - Construction-and-Demolition Cement Fines
+    - Thermally Activated Recycled Cement Paste
+    - Mechanically Activated Recycled Cement Paste
+    - Carbonated Recycled Cement Paste
+    expected_technology_domain: Supplementary Cementitious Material
+    allowed_functional_roles:
+    - Cement Replacement
+    - Pozzolanic SCM
+    - Hydraulic SCM
+    - Clinker Replacement
+    positive_screening_cues: *id007
+    negative_screening_cues:
+    - reclinkered as feedstock
+    - recycled aggregate only
+    retrieval_query_terms:
+    - recycled cement paste SCM
+    - recovered cement fines
+    - recycled cement paste
+    - recycled cement powder
+    - recovered cement fines
+    - recycled concrete powder
+    - construction-and-demolition cement fines
+  - slug: other_industrial_waste_derived_scms
+    display_name: Other Industrial Waste-Derived SCMs
+    parent: emerging_supplementary_cementitious_materials
+    level: sub_subcategory
+    definition: Other industrial wastes used as binder replacements or SCMs.
+    inclusion_criteria:
+    - binder replacement
+    - SCM
+    - reactive cementitious addition
+    exclusion_criteria:
+    - aggregate only
+    - soil amendment
+    - road base
+    - unrelated construction material
+    representative_synonyms: &id008
+    - red mud SCM
+    - steel slag powder cement replacement
+    - CKD as SCM
+    representative_technology_variants:
+    - Red Mud
+    - Bauxite Residue
+    - Cement Kiln Dust
+    - Carbide Sludge
+    - Lime Mud
+    - Phosphogypsum
+    - Steel Slag Powder
+    - Electric Arc Furnace Slag Powder
+    - Basic Oxygen Furnace Slag Powder
+    - Copper Slag Powder
+    - Ceramic Waste Powder
+    - Brick Powder
+    - Tile Waste Powder
+    - Marble Sludge
+    - Granite Sludge
+    - Quarry Fines
+    - Dredged Sediment
+    expected_technology_domain: Supplementary Cementitious Material
+    allowed_functional_roles:
+    - Cement Replacement
+    - Pozzolanic SCM
+    - Hydraulic SCM
+    - Clinker Replacement
+    positive_screening_cues: *id008
+    negative_screening_cues:
+    - aggregate only
+    - road base only
+    - alkali-activated complete binder
+    retrieval_query_terms:
+    - red mud SCM
+    - steel slag powder cement replacement
+    - CKD as SCM
+    - red mud
+    - bauxite residue
+    - cement kiln dust
+    - carbide sludge
+    - lime mud
+- slug: multi_material_cementitious_blends
+  display_name: Multi-Material Cementitious Blends
+  parent: cementitious_materials
+  level: subcategory
+  definition: Multi-component binder systems combining Portland cement and SCMs or hybrid chemistries.
+  inclusion_criteria:
+  - binary/ternary/quaternary blends
+  - HVFA
+  - hybrid binders
+  exclusion_criteria:
+  - Single SCM replacement studies without multi-material framing
+  representative_synonyms:
+  - ternary blend
+  - binary blend
+  - hybrid binder
+  representative_technology_variants: []
+  expected_technology_domain: Multi-Material Binder System
+  allowed_functional_roles:
+  - Multi-Component Binder
+  positive_screening_cues:
+  - ternary blend
+  - binary blend
+  - hybrid binder
+  negative_screening_cues: []
+  retrieval_query_terms:
+  - ternary blend
+  - binary blend
+  - hybrid binder
+  children:
+  - slug: binary_cementitious_blends
+    display_name: Binary Cementitious Blends
+    parent: multi_material_cementitious_blends
+    level: sub_subcategory
+    definition: Two-component cementitious binder systems.
+    inclusion_criteria:
+    - Portland Cement–Fly Ash
+    - Portland Cement–Slag
+    - Portland Cement–Silica Fume
+    - Portland Cement–Calcined Clay
+    - Portland Cement–Glass Pozzolan
+    exclusion_criteria:
+    - Single-material SCM studies without blend focus
+    - Factory LC3 as sole focus
+    representative_synonyms:
+    - binary cementitious blends
+    representative_technology_variants:
+    - Portland Cement–Fly Ash
+    - Portland Cement–Slag
+    - Portland Cement–Silica Fume
+    - Portland Cement–Calcined Clay
+    - Portland Cement–Glass Pozzolan
+    expected_technology_domain: Multi-Material Binder System
+    allowed_functional_roles:
+    - Multi-Component Binder
+    positive_screening_cues:
+    - binary cementitious blends
+    negative_screening_cues: []
+    retrieval_query_terms:
+    - binary cementitious blends
+  - slug: ternary_cementitious_blends
+    display_name: Ternary Cementitious Blends
+    parent: multi_material_cementitious_blends
+    level: sub_subcategory
+    definition: Three-component cementitious binder systems.
+    inclusion_criteria:
+    - Portland Cement–Fly Ash–Slag
+    - Portland Cement–Fly Ash–Silica Fume
+    - Portland Cement–Slag–Silica Fume
+    - Portland Cement–Limestone–Calcined Clay
+    - Portland Cement–Natural Pozzolan–Limestone
+    - Portland Cement–Glass Pozzolan–Slag
+    - Portland Cement–Synthetic Calcium Carbonate–SCM
+    exclusion_criteria:
+    - Single-material SCM studies without blend focus
+    - Factory LC3 as sole focus
+    representative_synonyms:
+    - ternary cementitious blends
+    representative_technology_variants:
+    - Portland Cement–Fly Ash–Slag
+    - Portland Cement–Fly Ash–Silica Fume
+    - Portland Cement–Slag–Silica Fume
+    - Portland Cement–Limestone–Calcined Clay
+    - Portland Cement–Natural Pozzolan–Limestone
+    - Portland Cement–Glass Pozzolan–Slag
+    - Portland Cement–Synthetic Calcium Carbonate–SCM
+    expected_technology_domain: Multi-Material Binder System
+    allowed_functional_roles:
+    - Multi-Component Binder
+    positive_screening_cues:
+    - ternary cementitious blends
+    negative_screening_cues: []
+    retrieval_query_terms:
+    - ternary cementitious blends
+  - slug: quaternary_cementitious_blends
+    display_name: Quaternary Cementitious Blends
+    parent: multi_material_cementitious_blends
+    level: sub_subcategory
+    definition: Four-or-more component cementitious blends emphasized as multi-SCM systems.
+    inclusion_criteria:
+    - Four-Component Cementitious Blend
+    - Multi-SCM Blend
+    exclusion_criteria:
+    - Single-material SCM studies without blend focus
+    - Factory LC3 as sole focus
+    representative_synonyms:
+    - quaternary cementitious blends
+    representative_technology_variants:
+    - Four-Component Cementitious Blend
+    - Multi-SCM Blend
+    expected_technology_domain: Multi-Material Binder System
+    allowed_functional_roles:
+    - Multi-Component Binder
+    positive_screening_cues:
+    - quaternary cementitious blends
+    negative_screening_cues: []
+    retrieval_query_terms:
+    - quaternary cementitious blends
+  - slug: high_scm_binder_systems
+    display_name: High-SCM Binder Systems
+    parent: multi_material_cementitious_blends
+    level: sub_subcategory
+    definition: High-volume SCM binder systems with substantial clinker reduction.
+    inclusion_criteria:
+    - High-Volume Fly Ash Concrete
+    - High-Volume Slag Concrete
+    - High-Volume SCM Concrete
+    - Clinker-Reduced Multi-SCM Binder
+    exclusion_criteria:
+    - Single-material SCM studies without blend focus
+    - Factory LC3 as sole focus
+    representative_synonyms:
+    - high-scm binder systems
+    representative_technology_variants:
+    - High-Volume Fly Ash Concrete
+    - High-Volume Slag Concrete
+    - High-Volume SCM Concrete
+    - Clinker-Reduced Multi-SCM Binder
+    expected_technology_domain: Multi-Material Binder System
+    allowed_functional_roles:
+    - Multi-Component Binder
+    positive_screening_cues:
+    - high-scm binder systems
+    negative_screening_cues: []
+    retrieval_query_terms:
+    - high-scm binder systems
+  - slug: hybrid_binder_systems
+    display_name: Hybrid Binder Systems
+    parent: multi_material_cementitious_blends
+    level: sub_subcategory
+    definition: Hybrids combining Portland and alternative chemistries or hydraulic–carbonating systems.
+    inclusion_criteria:
+    - Portland Cement–Alkali-Activated Hybrid
+    - Portland Cement–Geopolymer Hybrid
+    - Hydraulic–Carbonating Hybrid Binder
+    - Other Hybrid Binder
+    exclusion_criteria:
+    - Single-material SCM studies without blend focus
+    - Factory LC3 as sole focus
+    representative_synonyms:
+    - hybrid binder systems
+    representative_technology_variants:
+    - Portland Cement–Alkali-Activated Hybrid
+    - Portland Cement–Geopolymer Hybrid
+    - Hydraulic–Carbonating Hybrid Binder
+    - Other Hybrid Binder
+    expected_technology_domain: Multi-Material Binder System
+    allowed_functional_roles:
+    - Multi-Component Binder
+    positive_screening_cues:
+    - hybrid binder systems
+    negative_screening_cues: []
+    retrieval_query_terms:
+    - hybrid binder systems
+- slug: inert_and_low_reactivity_fillers
+  display_name: Inert and Low-Reactivity Fillers
+  parent: cementitious_materials
+  level: subcategory
+  definition: Inert or low-reactivity mineral and carbonaceous fillers in cementitious systems.
+  inclusion_criteria:
+  - limestone filler
+  - biochar filler
+  - quarry dust filler
+  exclusion_criteria:
+  - Reactive SCM use
+  - clinker feedstock
+  representative_synonyms:
+  - mineral filler
+  - inert filler
+  representative_technology_variants: []
+  expected_technology_domain: Filler
+  allowed_functional_roles:
+  - Filler
+  positive_screening_cues:
+  - mineral filler
+  - inert filler
+  negative_screening_cues:
+  - pozzolanic activity
+  - SCM replacement
+  retrieval_query_terms:
+  - mineral filler
+  - inert filler
+  children:
+  - slug: carbonaceous_fillers
+    display_name: Carbonaceous Fillers
+    parent: inert_and_low_reactivity_fillers
+    level: sub_subcategory
+    definition: Carbon-rich fillers used primarily for packing or inert filling.
+    inclusion_criteria:
+    - filler
+    - inert addition
+    - particle packing
+    exclusion_criteria:
+    - Reactive SCM framing
+    - complete binder
+    representative_synonyms:
+    - carbonaceous fillers
+    - biochar
+    - wood-derived biochar
+    - agricultural-residue biochar
+    representative_technology_variants:
+    - Biochar
+    - Wood-Derived Biochar
+    - Agricultural-Residue Biochar
+    - Sewage-Sludge Biochar
+    - Bamboo Biochar
+    - Rice Husk Biochar
+    - Carbon Black
+    - Graphitic Carbon Filler
+    expected_technology_domain: Filler
+    allowed_functional_roles:
+    - Filler
+    positive_screening_cues:
+    - carbonaceous fillers
+    - biochar
+    - wood-derived biochar
+    - agricultural-residue biochar
+    negative_screening_cues:
+    - pozzolanic SCM
+    - cement replacement with reactivity focus
+    retrieval_query_terms:
+    - carbonaceous fillers
+    - biochar
+    - wood-derived biochar
+    - agricultural-residue biochar
+  - slug: carbonate_fillers
+    display_name: Carbonate Fillers
+    parent: inert_and_low_reactivity_fillers
+    level: sub_subcategory
+    definition: Carbonate mineral fillers used primarily as inert or low-reactivity fillers.
+    inclusion_criteria:
+    - filler
+    - inert addition
+    - particle packing
+    exclusion_criteria:
+    - Reactive SCM framing
+    - complete binder
+    representative_synonyms:
+    - carbonate fillers
+    - limestone
+    - ground limestone
+    - dolomite
+    representative_technology_variants:
+    - Limestone
+    - Ground Limestone
+    - Dolomite
+    - Ground Dolomite
+    - Marble Powder
+    - Chalk
+    - Calcite
+    - Aragonite
+    - Vaterite
+    - Precipitated Calcium Carbonate
+    expected_technology_domain: Filler
+    allowed_functional_roles:
+    - Filler
+    positive_screening_cues:
+    - carbonate fillers
+    - limestone
+    - ground limestone
+    - dolomite
+    negative_screening_cues:
+    - pozzolanic SCM
+    - cement replacement with reactivity focus
+    retrieval_query_terms:
+    - carbonate fillers
+    - limestone
+    - ground limestone
+    - dolomite
+  - slug: siliceous_fillers
+    display_name: Siliceous Fillers
+    parent: inert_and_low_reactivity_fillers
+    level: sub_subcategory
+    definition: Crystalline siliceous fillers with low pozzolanic reactivity framing.
+    inclusion_criteria:
+    - filler
+    - inert addition
+    - particle packing
+    exclusion_criteria:
+    - Reactive SCM framing
+    - complete binder
+    representative_synonyms:
+    - siliceous fillers
+    - quartz powder
+    - silica flour
+    - ground sand
+    representative_technology_variants:
+    - Quartz Powder
+    - Silica Flour
+    - Ground Sand
+    - Crystalline Silica Filler
+    - Quartz Fines
+    expected_technology_domain: Filler
+    allowed_functional_roles:
+    - Filler
+    positive_screening_cues:
+    - siliceous fillers
+    - quartz powder
+    - silica flour
+    - ground sand
+    negative_screening_cues:
+    - pozzolanic SCM
+    - cement replacement with reactivity focus
+    retrieval_query_terms:
+    - siliceous fillers
+    - quartz powder
+    - silica flour
+    - ground sand
+  - slug: rock_and_quarry_fillers
+    display_name: Rock and Quarry Fillers
+    parent: inert_and_low_reactivity_fillers
+    level: sub_subcategory
+    definition: Quarry and crushed-rock mineral fillers.
+    inclusion_criteria:
+    - filler
+    - inert addition
+    - particle packing
+    exclusion_criteria:
+    - Reactive SCM framing
+    - complete binder
+    representative_synonyms:
+    - rock and quarry fillers
+    - granite powder
+    - basalt powder
+    - quarry dust
+    representative_technology_variants:
+    - Granite Powder
+    - Basalt Powder
+    - Quarry Dust
+    - Stone Dust
+    - Crusher Fines
+    - Andesite Powder
+    - Sandstone Powder
+    expected_technology_domain: Filler
+    allowed_functional_roles:
+    - Filler
+    positive_screening_cues:
+    - rock and quarry fillers
+    - granite powder
+    - basalt powder
+    - quarry dust
+    negative_screening_cues:
+    - pozzolanic SCM
+    - cement replacement with reactivity focus
+    retrieval_query_terms:
+    - rock and quarry fillers
+    - granite powder
+    - basalt powder
+    - quarry dust
+  - slug: industrial_mineral_fillers
+    display_name: Industrial Mineral Fillers
+    parent: inert_and_low_reactivity_fillers
+    level: sub_subcategory
+    definition: Industrial minerals used primarily as fillers.
+    inclusion_criteria:
+    - filler
+    - inert addition
+    - particle packing
+    exclusion_criteria:
+    - Reactive SCM framing
+    - complete binder
+    representative_synonyms:
+    - industrial mineral fillers
+    - talc
+    - kaolin
+    - uncalcined clay
+    representative_technology_variants:
+    - Talc
+    - Kaolin
+    - Uncalcined Clay
+    - Bentonite
+    - Wollastonite
+    - Perlite
+    - Diatomite
+    expected_technology_domain: Filler
+    allowed_functional_roles:
+    - Filler
+    positive_screening_cues:
+    - industrial mineral fillers
+    - talc
+    - kaolin
+    - uncalcined clay
+    negative_screening_cues:
+    - pozzolanic SCM
+    - cement replacement with reactivity focus
+    retrieval_query_terms:
+    - industrial mineral fillers
+    - talc
+    - kaolin
+    - uncalcined clay
+  - slug: recycled_mineral_fillers
+    display_name: Recycled Mineral Fillers
+    parent: inert_and_low_reactivity_fillers
+    level: sub_subcategory
+    definition: Recycled mineral powders used primarily as fillers.
+    inclusion_criteria:
+    - filler
+    - inert addition
+    - particle packing
+    exclusion_criteria:
+    - Reactive SCM framing
+    - complete binder
+    representative_synonyms:
+    - recycled mineral fillers
+    - recycled concrete fines
+    - recycled glass fines
+    - ceramic powder
+    representative_technology_variants:
+    - Recycled Concrete Fines
+    - Recycled Glass Fines
+    - Ceramic Powder
+    - Brick Powder
+    - Tile Powder
+    - Construction-and-Demolition Fines
+    expected_technology_domain: Filler
+    allowed_functional_roles:
+    - Filler
+    positive_screening_cues:
+    - recycled mineral fillers
+    - recycled concrete fines
+    - recycled glass fines
+    - ceramic powder
+    negative_screening_cues:
+    - pozzolanic SCM
+    - cement replacement with reactivity focus
+    retrieval_query_terms:
+    - recycled mineral fillers
+    - recycled concrete fines
+    - recycled glass fines
+    - ceramic powder
+  - slug: engineered_ultrafine_fillers
+    display_name: Engineered Ultrafine Fillers
+    parent: inert_and_low_reactivity_fillers
+    level: sub_subcategory
+    definition: Engineered ultrafine fillers for particle packing.
+    inclusion_criteria:
+    - filler
+    - inert addition
+    - particle packing
+    exclusion_criteria:
+    - Reactive SCM framing
+    - complete binder
+    representative_synonyms:
+    - engineered ultrafine fillers
+    - ultrafine limestone
+    - nanocalcium carbonate
+    - nanosilica used primarily as filler
+    representative_technology_variants:
+    - Ultrafine Limestone
+    - Nanocalcium Carbonate
+    - Nanosilica Used Primarily as Filler
+    - Engineered Particle-Packing Filler
+    - Hybrid Mineral Filler
+    expected_technology_domain: Filler
+    allowed_functional_roles:
+    - Filler
+    positive_screening_cues:
+    - engineered ultrafine fillers
+    - ultrafine limestone
+    - nanocalcium carbonate
+    - nanosilica used primarily as filler
+    negative_screening_cues:
+    - pozzolanic SCM
+    - cement replacement with reactivity focus
+    retrieval_query_terms:
+    - engineered ultrafine fillers
+    - ultrafine limestone
+    - nanocalcium carbonate
+    - nanosilica used primarily as filler

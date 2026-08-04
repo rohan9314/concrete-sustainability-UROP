@@ -14,7 +14,6 @@ from dotenv import load_dotenv
 
 from pipeline.concurrency import run_parallel_ordered
 from pipeline.llm_utils import DEFAULT_MODEL, _parse_json_response
-from pipeline.openai_client import call_openai
 from pipeline.record_utils import record_dedupe_key
 from pipeline.screening import (
     CCS_SUBPATHS,
@@ -176,6 +175,9 @@ def classify_record(
     )
 
     try:
+        # Lazy import: avoid loading the OpenAI SDK / token deps at module import.
+        from pipeline.openai_client import call_openai
+
         raw = call_openai(
             model=opts.model,
             messages=[

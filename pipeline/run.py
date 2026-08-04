@@ -23,7 +23,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("pipeline.run")
 
-KNOWN_CATEGORIES = ("scm", "carbon_capture")
+KNOWN_CATEGORIES = ("scm", "carbon_capture", "cementitious_materials")
 
 
 def get_pipeline(category: str):
@@ -37,6 +37,10 @@ def get_pipeline(category: str):
         from pipeline import run_carbon_capture
 
         return run_carbon_capture
+    if key in {"cementitious_materials", "cementitious"}:
+        from pipeline import run_cementitious_materials
+
+        return run_cementitious_materials
     raise ValueError(
         f"Unknown category: {category!r}. Choose one of: {', '.join(KNOWN_CATEGORIES)}.",
     )
@@ -51,7 +55,7 @@ def main(argv: list[str] | None = None) -> int:
         "--category",
         required=False,
         default="",
-        help="Required. One of: scm, carbon_capture",
+        help="Required. One of: scm, carbon_capture, cementitious_materials",
     )
     parser.add_argument(
         "passthrough",

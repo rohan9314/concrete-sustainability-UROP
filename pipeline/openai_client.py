@@ -1,4 +1,8 @@
-"""Lightweight OpenAI client for pipeline stages (no backend retrieval/search imports)."""
+"""Lightweight OpenAI client for pipeline stages (no backend retrieval/search imports).
+
+OpenAI SDK imports are deferred until a request is made so screening/schema
+modules can be imported without pulling tiktoken or initializing network clients.
+"""
 
 from __future__ import annotations
 
@@ -10,7 +14,6 @@ from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
-from openai import APIStatusError, APITimeoutError, OpenAI, RateLimitError
 
 load_dotenv()
 load_dotenv(Path(__file__).resolve().parents[1] / "backend" / ".env")
@@ -61,6 +64,9 @@ def get_timeout_seconds() -> float:
 
 
 def _is_retryable_error(exc: Exception) -> bool:
+    # Lazy import: keep module import free of the OpenAI SDK / tiktoken.
+    from openai import APIStatusError, APITimeoutError, RateLimitError
+
     if isinstance(exc, (RateLimitError, APITimeoutError)):
         return True
     if isinstance(exc, APIStatusError):
@@ -74,7 +80,9 @@ def _retry_delay(attempt: int) -> float:
     return base + jitter
 
 
-def _build_client(*, timeout: float) -> OpenAI:
+def _build_client(*, timeout: float):
+    from openai import OpenAI
+
     return OpenAI(api_key=validate_api_key(), timeout=timeout)
 
 

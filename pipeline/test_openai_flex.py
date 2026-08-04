@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 BACKEND_ROOT = REPO_ROOT / "backend"
@@ -76,10 +79,22 @@ def test_call_openai_flex_returns_text() -> None:
     assert text == "hello"
 
 
+@pytest.mark.live_openai
 def test_live_call() -> None:
-    from llm import validate_api_key
+    """Live OpenAI smoke test. Opt in with RUN_LIVE_OPENAI_TESTS=1."""
+    if os.environ.get("RUN_LIVE_OPENAI_TESTS", "").strip() != "1":
+        pytest.skip(
+            "Live OpenAI tests are disabled by default. "
+            "Set RUN_LIVE_OPENAI_TESTS=1 to opt in."
+        )
 
-    validate_api_key()
+    api_key = os.environ.get("OPENAI_API_KEY", "").strip()
+    if not api_key or api_key == "YOUR_OPENAI_TOKEN_HERE":
+        pytest.fail(
+            "OPENAI_API_KEY is required when RUN_LIVE_OPENAI_TESTS=1 "
+            "(set it in the environment or backend/.env)."
+        )
+
     text = call_openai_flex(
         model="gpt-4o-mini",
         messages=[
