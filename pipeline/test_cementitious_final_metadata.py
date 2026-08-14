@@ -446,6 +446,9 @@ class FinalMetadataContractTests(unittest.TestCase):
             self.assertEqual(summary.get("final_validation_status"), "pass")
             self.assertTrue((root / "metadata" / "run_manifest.json").is_file())
             self.assertTrue((root / "checkpoints" / "export.complete").is_file())
+            self.assertTrue(
+                (root / "cementitious_materials_results" / "cementitious_materials_all_records.csv").is_file()
+            )
 
 
 if __name__ == "__main__":

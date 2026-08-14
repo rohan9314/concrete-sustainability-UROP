@@ -80,6 +80,20 @@ def taxonomy_compact(
     return "\n".join(lines)
 
 
+CANONICAL_ROLE_EXAMPLES = """
+Role-sensitive examples across the Concrete Decarbonization taxonomy:
+- Amine solvent CO2 capture at a cement kiln → Cementitious Materials / Cement-Plant Carbon Capture / Chemical Absorption / Amine Absorption.
+- Carbonated recycled concrete aggregate → Aggregate Procurement / Recycled Concrete Aggregates / Treated RCA / Carbonated RCA.
+- Bacterial self-healing concrete mix design → Concrete Design / Design for Durability / Self-Healing Concrete / Bacterial Self-Healing Concrete.
+- Topology-optimized concrete floors that reduce concrete volume → Structural and Construction Design / Efficient Concrete Use / Topology Optimization / Topology-Optimized Floors.
+- Reducing mix strength overdesign in ready-mix operation → Operation / Optimal Overdesign / Mix Overdesign Reduction / Reduced Strength Overdesign.
+- Buy Clean public procurement limits on embodied carbon → Policy / Green Public Procurement / Embodied-Carbon Procurement Limits / Buy Clean Programs.
+- Crushing demolished concrete to enhance atmospheric carbonation → End-of-Life / End-of-Life Carbonation / Enhanced Concrete Carbonation / Crushing-Enhanced Carbonation.
+- Rice husk ash used as a cement replacement → Cementitious Materials (SCM). Do not force a Level-4 leaf unless the source names one.
+A paper may map to more than one Level-1 branch; return multiple taxonomy_paths rather than dropping a branch.
+""".strip()
+
+
 def screening_system_prompt(*, scoped: bool = False) -> str:
     base = (
         "You screen academic abstracts for relevance to Cementitious Materials "
@@ -290,6 +304,112 @@ def qc_system_prompt() -> str:
         "complete binder vs SCM). Propose corrections but do not invent values. "
         "Return JSON only."
     )
+
+
+def canonical_screening_system_prompt() -> str:
+    return (
+        "You screen academic abstracts for relevance to Concrete Decarbonization: "
+        "cement and concrete climate-mitigation technologies, materials, design, "
+        "construction, operation, policy, and end-of-life. Decide from the described "
+        "intervention, not from isolated keywords. A paper is relevant if it concerns "
+        "ANY of the seven Level-1 categories, not only cementitious materials. "
+        "Prefer high recall. Return strict JSON only."
+    )
+
+
+def canonical_screening_user_prompt(*, title: str, abstract: str) -> str:
+    from pipeline.cementitious.decarb_literature import compact_level1_block
+
+    return f"""
+Screen this paper for Concrete Decarbonization relevance.
+
+{CANONICAL_ROLE_EXAMPLES}
+
+{compact_level1_block()}
+
+Title: {title}
+
+Abstract:
+{abstract}
+
+Return JSON:
+{{
+  "relevant": true/false,
+  "relevance_confidence": "High"|"Medium"|"Low",
+  "suggested_level_1": ["one or more Level-1 labels from the list above"],
+  "reason": "one concise evidence-based sentence",
+  "negative_match": "if excluded, which exclusion applied, else empty string"
+}}
+""".strip()
+
+
+def canonical_classification_system_prompt() -> str:
+    return (
+        "You classify concrete-decarbonization interventions into a fixed five-level "
+        "taxonomy. Classify from the technological function described by the source. "
+        "Do not invent taxonomy nodes. Assign Level 4 only when the source supports "
+        "that specificity; otherwise use N.A. for unsupported deeper levels. "
+        "A paper may receive multiple taxonomy_paths when it legitimately spans "
+        "Level-1 branches. Return strict JSON only."
+    )
+
+
+def canonical_classification_user_prompt(
+    *,
+    title: str,
+    text: str,
+    level_1_labels: list[str] | None = None,
+) -> str:
+    from pipeline.cementitious.decarb_literature import compact_branch_block, compact_level1_block
+    from pipeline.cementitious.decarbonization_taxonomy import get_decarbonization_taxonomy
+
+    tax = get_decarbonization_taxonomy()
+    branch = compact_branch_block(tax, list(level_1_labels or []))
+    if not branch:
+        branch = compact_level1_block(tax)
+    return f"""
+Classify the intervention described below into the Concrete Decarbonization taxonomy.
+
+{CANONICAL_ROLE_EXAMPLES}
+
+PERMITTED TAXONOMY (bounded to selected Level-1 branches when provided):
+{branch}
+
+Source title: {title}
+
+Evidence text:
+{text[:12000]}
+
+Rules:
+- taxonomy_level_0 is always "Concrete Decarbonization".
+- Choose one or more Level-1 labels from the permitted tree.
+- Within each selected branch, assign the deepest Level 2/3/4 supported by evidence.
+- If evidence supports a Level-3 node but not a specific Level-4 technology, set taxonomy_level_4 to "N.A.".
+- Do not fabricate a Level-4 leaf.
+- If two Level-1 branches both apply, return both in taxonomy_paths.
+
+Return JSON:
+{{
+  "relevant": true/false,
+  "taxonomy_paths": [
+    {{
+      "taxonomy_level_0": "Concrete Decarbonization",
+      "taxonomy_level_1": "...",
+      "taxonomy_level_2": "..."|"N.A.",
+      "taxonomy_level_3": "..."|"N.A.",
+      "taxonomy_level_4": "..."|"N.A.",
+      "classification_basis": "Explicit"|"Strongly Inferred"|"Weakly Inferred"|"Unresolved",
+      "taxonomy_confidence": "High"|"Medium"|"Low",
+      "classification_reasoning": "quote or paraphrase supporting evidence"
+    }}
+  ],
+  "technology_variant": "...",
+  "raw_technology_name": "...",
+  "canonical_technology_name": "...",
+  "alternative_classification": "...",
+  "evidence_span": "..."
+}}
+""".strip()
 
 
 def qc_user_prompt(*, record: dict[str, Any]) -> str:

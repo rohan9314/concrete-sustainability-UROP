@@ -81,12 +81,14 @@ def _web_limits(**overrides) -> WebLimits:
         results_per_query=3,
         max_urls_per_branch=50,
         max_total_urls=100,
+        max_total_queries=0,
         search_shard_size=2,
         extract_shard_size=2,
         concurrency=2,
         request_timeout=5,
         max_retries=1,
         page_max_chars=5000,
+        rate_limit_sleep_s=0.0,
     )
     base.update(overrides)
     return WebLimits(**base)

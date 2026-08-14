@@ -11,11 +11,18 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from pipeline.cementitious.canonical_user_export import write_canonical_user_export
+from pipeline.cementitious.hierarchical_export import write_hierarchical_export
+from pipeline.cementitious.taxonomy_migration import (
+    apply_decarbonization_path,
+    coverage_report,
+)
 from pipeline.cementitious.paths import (
     ensure_730_layout,
     safe_partition_filename,
     sanitize_slug,
 )
+from pipeline.cementitious.shard_io import atomic_write_csv
 from pipeline.cementitious.schema import (
     CITATION_FIELDS,
     RECORD_FIELDS,
@@ -91,18 +98,7 @@ def _read_records(path: Path) -> list[dict[str, Any]]:
 
 
 def write_csv(path: Path, fieldnames: tuple[str, ...] | list[str], rows: list[dict[str, Any]]) -> Path:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(
-            handle,
-            fieldnames=list(fieldnames),
-            extrasaction="ignore",
-            quoting=csv.QUOTE_MINIMAL,
-        )
-        writer.writeheader()
-        for row in rows:
-            writer.writerow({k: row.get(k, "") for k in fieldnames})
-    return path
+    return atomic_write_csv(Path(path), fieldnames, rows)
 
 
 def write_jsonl(path: Path, rows: list[dict[str, Any]]) -> Path:
@@ -372,6 +368,7 @@ def export_taxonomy_partitions(
 
     # All-records (full accepted set unless selective mode requested for export-only)
     export_rows = filtered if (subcategory or sub_subcategory) else accepted
+    export_rows = [apply_decarbonization_path(r) for r in export_rows]
     all_csv = layout["all_records"] / "cementitious_materials_all_records.csv"
     all_jsonl = layout["all_records"] / "cementitious_materials_all_records.jsonl"
     write_csv(all_csv, RECORD_FIELDS, export_rows)
@@ -544,6 +541,26 @@ def export_taxonomy_partitions(
                 pending_records.append(row)
     pending_summary = write_pending_taxonomy_review(root, pending_records, taxonomy=tax)
 
+    # Canonical user-facing tree (master → category → subcategory). Derived from
+    # the same export_rows list as all_records/; not an independent transform.
+    user_export = write_canonical_user_export(
+        root,
+        export_rows,
+        fieldnames=RECORD_FIELDS,
+        force=force,
+    )
+    hierarchical_export = write_hierarchical_export(
+        root,
+        export_rows,
+        fieldnames=RECORD_FIELDS,
+        force=force,
+    )
+    migration_coverage = coverage_report()
+    (layout["metadata"] / "cementitious_runtime_taxonomy_migration.json").write_text(
+        json.dumps(migration_coverage, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
     # Counts for validation report
     by_sub = Counter(r["subcategory_slug"] for r in accepted)
     by_ss = Counter(r["sub_subcategory_slug"] for r in accepted)
@@ -612,6 +629,20 @@ def export_taxonomy_partitions(
         "pending_taxonomy_review": pending_summary,
         "citation_alignment_issue_count": len(citation_alignment_issues),
         "citation_alignment_issues": citation_alignment_issues[:50],
+        "user_facing_export": {
+            "root": "cementitious_materials_results/",
+            "master_csv": "cementitious_materials_results/cementitious_materials_all_records.csv",
+            "category_csv_count": user_export.get("category_csv_count"),
+            "subcategory_csv_count": user_export.get("subcategory_csv_count"),
+            "empty_partition_policy": user_export.get("empty_partition_policy"),
+            "taxonomy_level_mapping": user_export.get("taxonomy_level_mapping"),
+        },
+        "hierarchical_export": {
+            "root": "concrete_decarbonization_results/",
+            "master_csv": "concrete_decarbonization_results/concrete_decarbonization.csv",
+            "total_csvs_generated": hierarchical_export.get("total_csvs_generated"),
+            "manifest": "metadata/taxonomy_export_manifest.json",
+        },
     }
     # Enrich with web stage metrics when available
     meta = root / "metadata"
@@ -703,6 +734,8 @@ def export_taxonomy_partitions(
         "rejected_missing": len(validation.missing_taxonomy),
         "partition_file_count": partition_file_count,
         "empty_partition_count": empty_partition_count,
+        "user_facing_export": user_export,
+        "hierarchical_export": hierarchical_export,
         "validation_report": validation_report,
     }
 

@@ -19,7 +19,10 @@ if str(REPO_ROOT) not in sys.path:
 from pipeline.cementitious.workflow_launch import (
     PILOT_MAX_RECORDS,
     PILOT_RESULTS_SUFFIX,
+    PILOT_TAXONOMY_SCOPE_ALL,
+    PILOT_TAXONOMY_SCOPE_SMOKE,
     PILOT_WEB_LEAF,
+    PILOT_WEB_PARENT,
     build_launch_config,
     build_workflow_dry_run,
     export_paths_for_leaves,
@@ -61,8 +64,26 @@ class PilotFullConfigTests(unittest.TestCase):
             self.assertEqual(cfg.array_max_concurrency, 1)
             self.assertIn(PILOT_RESULTS_SUFFIX, Path(cfg.results_root).parts)
             self.assertIn(PILOT_WEB_LEAF, cfg.selected_sub_subcategories)
+            self.assertEqual(cfg.pilot_taxonomy_scope, PILOT_TAXONOMY_SCOPE_SMOKE)
+            self.assertTrue(cfg.pilot_corpus_sampling)
+            self.assertEqual(cfg.selected_subcategories, [PILOT_WEB_PARENT])
+            behavior = cfg.as_public_dict()["pilot_behavior"]
+            self.assertTrue(behavior["corpus_sampling"]["enabled"])
+            self.assertTrue(behavior["taxonomy_restriction"]["enabled"])
             errors = validate_launch_config(cfg, environ=env)
             self.assertEqual(errors, [])
+
+    def test_pilot_taxonomy_scope_all_keeps_record_cap_without_restricting_taxonomy(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            env = _env(Path(tmp), mode_bits={"CEMENTITIOUS_PILOT_TAXONOMY_SCOPE": "all"})
+            with mock.patch.dict(os.environ, env, clear=False):
+                cfg = build_launch_config("pilot", dry_run=True)
+            self.assertEqual(cfg.max_records, PILOT_MAX_RECORDS)
+            self.assertTrue(cfg.pilot_corpus_sampling)
+            self.assertEqual(cfg.pilot_taxonomy_scope, PILOT_TAXONOMY_SCOPE_ALL)
+            self.assertEqual(cfg.selected_subcategories, [])
+            self.assertEqual(cfg.selected_sub_subcategories, [])
+            self.assertGreaterEqual(len(web_leaf_slugs(cfg)), 50)
 
     def test_full_enables_lit_and_web_no_cap(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -158,16 +179,26 @@ class OrchestrationGraphTests(unittest.TestCase):
 
     def test_one_line_scripts_exist(self) -> None:
         root = REPO_ROOT / "scripts" / "engaging"
-        self.assertTrue((root / "run_cementitious_full_workflow.sh").is_file())
+        canonical = root / "run_concrete_decarbonization_full_workflow.sh"
+        alias = root / "run_cementitious_full_workflow.sh"
+        self.assertTrue(canonical.is_file())
+        self.assertTrue(alias.is_file())
         self.assertTrue((root / "run_cementitious_pilot.sh").is_file())
-        text = (root / "run_cementitious_full_workflow.sh").read_text(encoding="utf-8")
+        text = canonical.read_text(encoding="utf-8")
         self.assertIn("--pilot", text)
+        self.assertIn("--smoke", text)
+        self.assertIn("--pilot-50", text)
+        self.assertIn("--pilot-1000", text)
         self.assertIn("--full", text)
         self.assertIn("--dry-run", text)
         self.assertIn("730_cementitious_preprocess_plan.sh", text)
         self.assertIn("SKIP_LIT_PLAN=1", text)
         self.assertIn("run_730_results.sh", text)
-        self.assertNotIn("OPENAI_API_KEY=", text.split("echo")[0])  # no hard-coded key assignment in header
+        self.assertIn("render_preflight_summary", text)
+        self.assertIn("Concrete Decarbonization", text)
+        self.assertNotIn("OPENAI_API_KEY=", text.split("echo")[0])
+        alias_text = alias.read_text(encoding="utf-8")
+        self.assertIn("run_concrete_decarbonization_full_workflow.sh", alias_text)
 
     def test_secrets_redacted_from_manifest_payload(self) -> None:
         payload = redact_secrets(

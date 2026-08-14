@@ -10,6 +10,7 @@ import hashlib
 import json
 import logging
 import os
+import random
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
@@ -67,6 +68,26 @@ def corpus_fingerprint(path: Path) -> dict[str, Any]:
         "mtime_ns": getattr(st, "st_mtime_ns", int(st.st_mtime * 1e9)),
         "partial_sha256": h.hexdigest(),
     }
+
+
+def _sample_indices(n: int, sample_size: int, seed: int) -> list[int]:
+    """Deterministic sample of corpus indices (sorted for stable shard order)."""
+    if sample_size >= n:
+        return list(range(n))
+    rng = random.Random(seed)
+    return sorted(rng.sample(range(n), sample_size))
+
+
+def resolve_sample_seed() -> int:
+    raw = (
+        os.getenv("CEMENTITIOUS_SAMPLE_SEED")
+        or os.getenv("SAMPLE_SEED")
+        or "42"
+    ).strip()
+    try:
+        return int(raw)
+    except ValueError:
+        return 42
 
 
 def _project_record(record: dict[str, Any], corpus_index: int) -> dict[str, Any]:
@@ -191,22 +212,34 @@ def materialize_corpus_shards(
     env_max = os.getenv("CEMENTITIOUS_MAX_RECORDS", "").strip()
     if max_records is None and env_max:
         max_records = int(env_max)
+    sample_seed = resolve_sample_seed() if max_records is not None else None
 
     if not force and corpus_shards_are_valid(
         out, fingerprint=fingerprint, shard_size=shard_size
     ):
         manifest = load_corpus_shards_manifest(out)
         assert manifest is not None
-        if manifest.get("max_records_applied") == max_records:
+        if (
+            manifest.get("max_records_applied") == max_records
+            and manifest.get("sample_seed") == sample_seed
+        ):
             logger.info("Reusing validated corpus shards under %s", corpus_shards_dir(out))
             return manifest
 
     logger.info("Materializing corpus shards from %s (full pickle load once)", resolved)
     all_records = load_paper_records(resolved)
-    total = len(all_records)
+    original_n = len(all_records)
     if max_records is not None:
-        total = min(total, max(0, int(max_records)))
-        all_records = all_records[:total]
+        indices = _sample_indices(original_n, int(max_records), int(sample_seed or 42))
+        sampled = [(i, all_records[i]) for i in indices]
+        del all_records
+        all_records = None  # type: ignore[assignment]
+        total = len(sampled)
+    else:
+        sampled = [(i, rec) for i, rec in enumerate(all_records)]
+        del all_records
+        all_records = None  # type: ignore[assignment]
+        total = len(sampled)
 
     if shard_size <= 0:
         raise CorpusShardError("shard_size must be positive")
@@ -219,7 +252,7 @@ def materialize_corpus_shards(
         pad = zero_pad_shard_id(cs.index)
         shard_path = shards_dir / f"corpus_shard_{pad}.jsonl"
         rows = (
-            _project_record(all_records[i], i)
+            _project_record(sampled[i][1], sampled[i][0])
             for i in range(cs.start, cs.end)
         )
         written = _write_jsonl_atomic(shard_path, rows)
@@ -239,8 +272,8 @@ def materialize_corpus_shards(
             }
         )
 
-    # Drop full corpus from this scope and clear the process-wide cache.
-    del all_records
+    # Drop sampled corpus from this scope and clear the process-wide cache.
+    del sampled
     import pipeline.corpus_loader as corpus_loader
 
     corpus_loader._cached_records = None
@@ -254,7 +287,12 @@ def materialize_corpus_shards(
         "input_corpus_path": str(resolved),
         "shard_size": shard_size,
         "record_count": total,
+        "source_corpus_record_count": original_n,
         "max_records_applied": max_records,
+        "sample_seed": sample_seed,
+        "sampling": (
+            "deterministic_rng_sample" if max_records is not None else "full_corpus"
+        ),
         "shard_count": len(shard_entries),
         "required_fields": list(SCREENING_RECORD_FIELDS),
         "shards": shard_entries,

@@ -140,6 +140,13 @@ def validate_export_stage(root: Path, spec: StageSpec) -> None:
         raise ResumeValidationError("missing run_manifest.json under metadata/ or all_records/")
     _validate_csv(root / "all_records" / "cementitious_materials_all_records.csv", allow_empty=True)
     _validate_csv(root / "all_records" / "citations_all.csv", allow_empty=True)
+    user_master = root / "cementitious_materials_results" / "cementitious_materials_all_records.csv"
+    if user_master.is_file():
+        _validate_csv(user_master, allow_empty=True)
+    else:
+        raise ResumeValidationError(
+            "missing cementitious_materials_results/cementitious_materials_all_records.csv"
+        )
     pending = root / "pending_taxonomy_review" / "pending_taxonomy_records.csv"
     if pending.is_file():
         _validate_csv(pending, allow_empty=True)
@@ -195,6 +202,8 @@ STAGE_SPECS: dict[str, StageSpec] = {
             "metadata/validation_report.json",
             "all_records/cementitious_materials_all_records.csv",
             "all_records/citations_all.csv",
+            "cementitious_materials_results/cementitious_materials_all_records.csv",
+            "concrete_decarbonization_results/concrete_decarbonization.csv",
         ),
         require_taxonomy_version=True,
         require_schema_version=True,

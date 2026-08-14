@@ -25,6 +25,27 @@ SOURCE_TYPE_TECHNICAL_REPORT = "Technical Report"
 SOURCE_TYPE_OTHER = "Other Web Source"
 SOURCE_TYPE_COMPANY = "Company Website"
 
+# Lower number = more authoritative. Used only to prefer URLs when a cap binds;
+# it never drops a source by itself.
+SOURCE_AUTHORITY_RANK: dict[str, int] = {
+    SOURCE_TYPE_ACADEMIC_LITERATURE: 1,
+    SOURCE_TYPE_GOVERNMENT: 2,
+    SOURCE_TYPE_ACADEMIC_INSTITUTION: 2,
+    SOURCE_TYPE_TECHNICAL_REPORT: 2,
+    SOURCE_TYPE_STANDARDS: 3,
+    SOURCE_TYPE_INDUSTRY_ASSOCIATION: 4,
+    SOURCE_TYPE_COMPANY: 5,
+    SOURCE_TYPE_CONFERENCE: 5,
+    SOURCE_TYPE_NEWS: 6,
+    SOURCE_TYPE_OTHER: 7,
+}
+
+
+def authority_rank_for_source_type(source_type: str) -> int:
+    """1 = peer-reviewed literature … 7 = other. Unknown labels rank as other."""
+    return int(SOURCE_AUTHORITY_RANK.get(source_type, 7))
+
+
 CLASSIFICATION_METHODS = (
     "explicit_metadata",
     "domain_rule",
@@ -179,12 +200,17 @@ class SourceClassification:
     reason: str
     matched_rule: str = ""
 
+    @property
+    def authority_rank(self) -> int:
+        return authority_rank_for_source_type(self.source_type)
+
     def as_dict(self) -> dict[str, str]:
         return {
             "source_type": self.source_type,
             "classification_method": self.method,
             "classification_reason": self.reason,
             "matched_rule": self.matched_rule,
+            "authority_rank": str(self.authority_rank),
         }
 
 

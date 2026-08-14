@@ -16,6 +16,15 @@ class CorpusShard:
         return f"{self.start}_{self.end}"
 
 
+def estimated_shard_count(total_records: int, shard_size: int) -> int:
+    """Number of shards for ``total_records`` at ``shard_size`` (0 if empty)."""
+    if total_records <= 0:
+        return 0
+    if shard_size <= 0:
+        raise ValueError("shard_size must be positive")
+    return (int(total_records) + int(shard_size) - 1) // int(shard_size)
+
+
 def plan_corpus_shards(total_records: int, shard_size: int) -> list[CorpusShard]:
     """Split a corpus into contiguous index ranges for array jobs."""
     if total_records <= 0:

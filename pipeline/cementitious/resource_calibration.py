@@ -6,7 +6,6 @@ import csv
 import json
 import math
 import os
-import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -17,8 +16,107 @@ from pipeline.cementitious.memory import (
     STAGE_MEMORY_PROFILES,
 )
 
-OOM_EXIT_CODES = {"137", "9", "OUT_OF_MEMORY"}
+OOM_EXIT_CODES = {"137", "OUT_OF_MEMORY"}
+POSSIBLE_CGROUP_KILL_MARKERS = frozenset({"9", "killed", "SIGKILL", "signal 9", "sigkill"})
+NON_MEMORY_FAILURE_MARKERS = frozenset(
+    {"TIMEOUT", "NODE_FAIL", "timeout", "node_failure", "NODE_FAIL", "Cancelled", "DEADLINE"}
+)
 UTILIZATION_WARN_PCT = 80.0
+ESTIMATED_FULL_CORPUS_RECORDS = 159_000
+FULL_SHARD_SIZE_DEFAULT = 10000
+FULL_WORKERS_DEFAULT = 1
+FULL_ARRAY_CONCURRENCY_DEFAULT = 1
+
+
+def classify_job_failure(
+    *,
+    exit_code: str | int | None = None,
+    state: str | None = None,
+    completion_status: str | None = None,
+    utilization_pct: float | None = None,
+    maxrss_mb: float | None = None,
+    requested_mem_gb: float | None = None,
+) -> dict[str, Any]:
+    """Classify a job/task ending without labeling every signal 9 as OOM.
+
+    Definite OOM: Slurm OUT_OF_MEMORY, exit 137, or explicit oom status.
+    Possible cgroup kill: signal 9 / killed — only treated as OOM when
+    corroborated by high MaxRSS utilization or an OUT_OF_MEMORY state.
+    TIMEOUT / NODE_FAIL are non-memory failures.
+    """
+    status = str(completion_status or "").strip()
+    state_s = str(state or "").strip()
+    code = str(exit_code or "").strip()
+    code_major = code.split(":")[0].strip() if code else ""
+    blob = " ".join([status, state_s, code]).strip()
+    blob_cf = blob.casefold()
+
+    if any(m.casefold() in blob_cf for m in NON_MEMORY_FAILURE_MARKERS):
+        return {
+            "kind": "non_memory",
+            "label": f"non-memory failure ({blob or status or state_s or code})",
+            "is_oom": False,
+            "definite": False,
+        }
+    if status == "soft_memory_stop" or "soft_memory_stop" in blob_cf:
+        return {
+            "kind": "soft_memory_stop",
+            "label": "soft_memory_stop (resumable; not a cgroup OOM)",
+            "is_oom": False,
+            "definite": False,
+        }
+
+    util = utilization_pct
+    if util is None and maxrss_mb is not None and requested_mem_gb:
+        util = 100.0 * float(maxrss_mb) / (float(requested_mem_gb) * 1024.0)
+    high_util = util is not None and float(util) >= UTILIZATION_WARN_PCT
+
+    definite = (
+        code_major == "137"
+        or "OUT_OF_MEMORY" in blob
+        or status.casefold() in {"oom", "out_of_memory"}
+        or state_s == "OUT_OF_MEMORY"
+    )
+    if definite:
+        return {
+            "kind": "oom",
+            "label": f"definite OOM ({blob or status or code})",
+            "is_oom": True,
+            "definite": True,
+        }
+
+    possible_kill = (
+        code_major == "9"
+        or status.casefold() in POSSIBLE_CGROUP_KILL_MARKERS
+        or "signal 9" in blob_cf
+        or "sigkill" in blob_cf
+    )
+    if possible_kill:
+        if high_util or state_s == "OUT_OF_MEMORY":
+            return {
+                "kind": "oom",
+                "label": (
+                    f"signal 9/killed corroborated as OOM "
+                    f"(util={util}%, state={state_s})"
+                ),
+                "is_oom": True,
+                "definite": True,
+            }
+        return {
+            "kind": "possible_cgroup_kill",
+            "label": (
+                "possible cgroup kill (signal 9/killed); not labeled definite OOM "
+                "without MaxRSS>=80% ReqMem or Slurm OUT_OF_MEMORY"
+            ),
+            "is_oom": False,
+            "definite": False,
+        }
+    return {
+        "kind": "other",
+        "label": blob or status or "unknown",
+        "is_oom": False,
+        "definite": False,
+    }
 
 
 def _now() -> str:
@@ -286,6 +384,9 @@ def build_full_run_recommendations(
                 f" Pilot utilization {util}% >= {UTILIZATION_WARN_PCT}% → inflated full request."
             )
         recommended_gb = _round_slurm_gb(recommended_mb / 1024.0)
+        if pilot_peak_mb > 0:
+            observed_gb = int(math.ceil(pilot_peak_mb / 1024.0))
+            recommended_gb = max(recommended_gb, observed_gb)
         # Never recommend below pilot request for preprocess.
         if name == "preprocess_plan":
             recommended_gb = max(recommended_gb, int(math.ceil(pilot_req)))
@@ -300,22 +401,54 @@ def build_full_run_recommendations(
             "recommended_slurm_memory_gb": recommended_gb,
             "recommended_slurm_memory": f"{recommended_gb}G",
             "recommended_soft_ceiling_gb": soft_gb,
-            "recommended_shard_size": 10000 if name in {"screen", "preprocess_plan"} else None,
-            "recommended_worker_count": 1,
-            "recommended_array_concurrency": 1,
+            "recommended_shard_size": FULL_SHARD_SIZE_DEFAULT
+            if name in {"screen", "preprocess_plan"}
+            else None,
+            "recommended_worker_count": FULL_WORKERS_DEFAULT,
+            "recommended_array_concurrency": FULL_ARRAY_CONCURRENCY_DEFAULT,
             "confidence": confidence if row else "none",
             "explanation": explanation if row else "No pilot telemetry for stage; using profile defaults inflated by safety factor.",
             "loads_full_pickle": profile.loads_full_pickle,
             "pilot_telemetry_present": row is not None,
             "completion_status": (row or {}).get("completion_status"),
         }
+    missing = [name for name, info in stages.items() if not info["pilot_telemetry_present"]]
+    warnings = []
+    if missing:
+        warnings.append(
+            "Insufficient pilot telemetry for stages: " + ", ".join(missing) + ". "
+            "Recommendations for those stages use profile defaults × safety factor."
+        )
+    from pipeline.cluster_shards import estimated_shard_count
+
+    worker_gb = int(stages.get("screen", {}).get("recommended_slurm_memory_gb") or 8)
+    preprocess_gb = int(stages.get("preprocess_plan", {}).get("recommended_slurm_memory_gb") or 64)
+    finalize_gb = max(
+        int(stages.get(s, {}).get("recommended_slurm_memory_gb") or 16)
+        for s in ("dedupe_qc", "export", "screen_merge", "extract_merge", "merge_literature_web")
+    )
     payload = {
         "created_at": _now(),
         "pilot_output_dir": str(out),
+        "evidence_source_pilot": str(out),
         "safety_factor": safety_factor,
         "soft_fraction_of_request": DEFAULT_SOFT_FRACTION,
         "pilot_leaf_count": pilot_leaf_count,
         "full_leaf_count": full_leaf_count,
+        "recommended_preprocess_memory": f"{preprocess_gb}G",
+        "recommended_worker_memory": f"{worker_gb}G",
+        "recommended_finalize_export_memory": f"{finalize_gb}G",
+        "shard_size": FULL_SHARD_SIZE_DEFAULT,
+        "workers": FULL_WORKERS_DEFAULT,
+        "array_concurrency": FULL_ARRAY_CONCURRENCY_DEFAULT,
+        "expected_shard_count": estimated_shard_count(
+            ESTIMATED_FULL_CORPUS_RECORDS, FULL_SHARD_SIZE_DEFAULT
+        ),
+        "estimated_full_corpus_records": ESTIMATED_FULL_CORPUS_RECORDS,
+        "observed_pilot_maxrss_mb_by_stage": {
+            name: info.get("pilot_observed_peak_rss_mb") for name, info in stages.items()
+        },
+        "warnings": warnings,
         "stages": stages,
         "secrets_included": False,
     }
@@ -330,22 +463,31 @@ def _scan_job_states(output_dir: Path) -> list[str]:
     problems: list[str] = []
     for path in (output_dir / "metadata").glob("*.json"):
         try:
-            text = path.read_text(encoding="utf-8")
+            payload = json.loads(path.read_text(encoding="utf-8"))
         except Exception:
             continue
-        if "OUT_OF_MEMORY" in text:
-            problems.append(f"OUT_OF_MEMORY marker in {path.name}")
-        if "soft_memory_stop" in text:
-            problems.append(f"soft_memory_stop marker in {path.name}")
-        if re.search(r'"ExitCode":\s*"137"', text) or re.search(r"exit[_ ]?code[\"']?\s*[:=]\s*137", text, re.I):
-            problems.append(f"exit code 137 in {path.name}")
-    # Telemetry soft stops
+        if not isinstance(payload, dict):
+            continue
+        verdict = classify_job_failure(
+            exit_code=payload.get("ExitCode") or payload.get("exit_code"),
+            state=payload.get("State") or payload.get("state"),
+            completion_status=payload.get("completion_status") or payload.get("status"),
+        )
+        if verdict["kind"] in {"oom", "possible_cgroup_kill", "soft_memory_stop"}:
+            problems.append(f"{verdict['label']} in {path.name}")
+        elif verdict["kind"] == "non_memory":
+            problems.append(f"{verdict['label']} in {path.name}")
     for row in load_telemetry_rows(output_dir):
-        status = str(row.get("completion_status") or "")
-        if status == "soft_memory_stop":
-            problems.append(f"unresolved soft_memory_stop in stage {row['stage']}")
-        if status in {"oom", "OUT_OF_MEMORY", "killed"}:
-            problems.append(f"OOM-like status in stage {row['stage']}: {status}")
+        verdict = classify_job_failure(
+            completion_status=row.get("completion_status"),
+            utilization_pct=row.get("utilization_pct_of_request"),
+            maxrss_mb=row.get("peak_rss_mb"),
+            requested_mem_gb=row.get("requested_mem_gb"),
+        )
+        if verdict["kind"] == "non_memory":
+            continue
+        if verdict["kind"] in {"oom", "possible_cgroup_kill", "soft_memory_stop"}:
+            problems.append(f"{verdict['label']} in stage {row['stage']}")
     return problems
 
 
@@ -407,7 +549,12 @@ def validate_pilot_calibration(
                         warnings.append(f"Unusual completion_status for {stage}: {status}")
 
     for problem in _scan_job_states(out):
-        errors.append(problem)
+        if "possible cgroup kill" in problem:
+            warnings.append(problem)
+        elif "non-memory failure" in problem:
+            warnings.append(problem)
+        else:
+            errors.append(problem)
 
     # High utilization is OK if recommendations bump memory.
     reco = {}
@@ -490,8 +637,11 @@ def apply_recommendations_to_environ(
         }:
             merge_gb = max(merge_gb, gb)
     env["SUBMIT_LOGIN_MEM"] = f"{merge_gb}G"
-    env["CEMENTITIOUS_WORKERS"] = "1"
-    env["ARRAY_MAX_CONCURRENCY"] = "1"
+    env["CEMENTITIOUS_WORKERS"] = str(recommendations.get("workers") or FULL_WORKERS_DEFAULT)
+    env["ARRAY_MAX_CONCURRENCY"] = str(
+        recommendations.get("array_concurrency") or FULL_ARRAY_CONCURRENCY_DEFAULT
+    )
+    env["SHARD_SIZE"] = str(recommendations.get("shard_size") or FULL_SHARD_SIZE_DEFAULT)
     return env
 
 
@@ -508,19 +658,26 @@ def resolve_pilot_output_for_calibration(
         path = Path(raw)
         return path if path.is_dir() else None
     if results_root:
-        from pipeline.cementitious.workflow_launch import PILOT_RESULTS_SUFFIX
         from pipeline.cementitious.paths import resolve_results_dir
+        from pipeline.cementitious.workflow_launch import (
+            PILOT_1000_RESULTS_SUFFIX,
+            PILOT_50_RESULTS_SUFFIX,
+            PILOT_RESULTS_SUFFIX,
+            unwrap_results_root_for_calibration,
+        )
 
         candidate = Path(results_root)
-        if candidate.name != PILOT_RESULTS_SUFFIX:
-            # sibling pilot dir under parent results root
-            parent = candidate
-            if (parent / PILOT_RESULTS_SUFFIX).is_dir():
-                return resolve_results_dir(parent / PILOT_RESULTS_SUFFIX)
-        else:
-            return resolve_results_dir(candidate)
-        # Also try parent/cementitious_engaging_pilot when RESULTS_ROOT is production parent
-        sibling = candidate / PILOT_RESULTS_SUFFIX
-        if sibling.is_dir():
-            return resolve_results_dir(sibling)
+        parent = unwrap_results_root_for_calibration(candidate) or candidate
+        from pipeline.cementitious import RESULTS_DIR_NAME
+
+        if candidate.name == RESULTS_DIR_NAME:
+            parent = unwrap_results_root_for_calibration(candidate.parent) or candidate.parent
+        for suffix in (
+            PILOT_1000_RESULTS_SUFFIX,
+            PILOT_50_RESULTS_SUFFIX,
+            PILOT_RESULTS_SUFFIX,
+        ):
+            sibling = parent / suffix
+            if sibling.is_dir():
+                return resolve_results_dir(sibling)
     return None

@@ -15,6 +15,20 @@ logger = logging.getLogger(__name__)
 
 UNSAFE_FILENAME_RE = re.compile(r"[^a-zA-Z0-9._\- ]+")
 
+# Canonical user-facing export (master → category → subcategory). See
+# pipeline.cementitious.canonical_user_export for the taxonomy-level mapping.
+USER_FACING_EXPORT_DIRNAME = "cementitious_materials_results"
+USER_FACING_MASTER_FILENAME = "cementitious_materials_all_records.csv"
+USER_FACING_CATEGORY_DIRNAME = "category_csvs"
+USER_FACING_SUBCATEGORY_DIRNAME = "subcategory_csvs"
+USER_FACING_UNASSIGNED_FILENAME = "unassigned_taxonomy.csv"
+
+# Canonical five-level Concrete Decarbonization export (mirrors the taxonomy tree).
+DECARBONIZATION_EXPORT_DIRNAME = "concrete_decarbonization_results"
+DECARBONIZATION_MASTER_FILENAME = "concrete_decarbonization.csv"
+TAXONOMY_EXPORT_MANIFEST_REL = "metadata/taxonomy_export_manifest.json"
+TAXONOMY_NA = "N.A."
+
 
 class StaleResultsRootError(ValueError):
     """Raised when RESULTS_ROOT / output points at legacy ``730 results``."""
@@ -136,6 +150,31 @@ def get_results_dir(results_root: Path | None = None) -> Path:
     return resolve_results_dir(results_root)
 
 
+def taxonomy_slugify(label: str) -> str:
+    """Filesystem-safe snake_case slug for a taxonomy label.
+
+    Parenthetical aliases are stripped so
+    ``Portland-Limestone Cement (PLC / Type IL)`` → ``portland_limestone_cement``.
+    ``CO2`` is always ``co2``. Punctuation is not kept in paths.
+    """
+    text = (label or "").strip()
+    if not text or text.upper() in {"N.A.", "NA", "N/A"}:
+        raise ValueError("Empty taxonomy label")
+    text = re.sub(r"\([^)]*\)", " ", text)
+    text = re.sub(r"CO2", "co2", text, flags=re.I)
+    text = text.replace("&", " and ")
+    text = text.replace("/", " ")
+    text = text.replace("+", " ")
+    text = re.sub(r"[^A-Za-z0-9]+", "_", text)
+    text = re.sub(r"_+", "_", text).strip("_").lower()
+    return sanitize_slug(text)
+
+
+def is_taxonomy_na(value: str | None) -> bool:
+    text = (value or "").strip()
+    return text == "" or text.upper() in {"N.A.", "NA", "N/A", "NONE"}
+
+
 def sanitize_slug(value: str) -> str:
     """Normalize a slug; reject path traversal and unsafe characters."""
     text = (value or "").strip().lower().replace(" ", "_").replace("-", "_")
@@ -184,6 +223,12 @@ def ensure_results_layout(output_dir: Path) -> dict[str, Path]:
         "screen_markers": output_dir / "checkpoints" / "screen_shards",
         "extraction_shards": output_dir / "metadata" / "extraction_shards",
         "extract_markers": output_dir / "checkpoints" / "extraction_shards",
+        "user_facing_export": output_dir / USER_FACING_EXPORT_DIRNAME,
+        "user_category_csvs": output_dir / USER_FACING_EXPORT_DIRNAME / USER_FACING_CATEGORY_DIRNAME,
+        "user_subcategory_csvs": (
+            output_dir / USER_FACING_EXPORT_DIRNAME / USER_FACING_SUBCATEGORY_DIRNAME
+        ),
+        "decarbonization_export": output_dir / DECARBONIZATION_EXPORT_DIRNAME,
     }
     for path in layout.values():
         path.mkdir(parents=True, exist_ok=True)

@@ -197,9 +197,9 @@ class CalibrationTests(unittest.TestCase):
 
 class ScriptGuardTests(unittest.TestCase):
     def test_full_workflow_script_mentions_calibration_override(self) -> None:
-        text = (REPO_ROOT / "scripts" / "engaging" / "run_cementitious_full_workflow.sh").read_text(
-            encoding="utf-8"
-        )
+        text = (
+            REPO_ROOT / "scripts" / "engaging" / "run_concrete_decarbonization_full_workflow.sh"
+        ).read_text(encoding="utf-8")
         self.assertIn("--allow-uncalibrated-resources", text)
         self.assertIn("resource_usage_summary", text)
         self.assertIn("full_run_resource_recommendations", text)

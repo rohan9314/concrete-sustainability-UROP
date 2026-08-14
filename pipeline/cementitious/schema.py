@@ -31,6 +31,16 @@ RECORD_FIELDS: tuple[str, ...] = (
     "subcategory_slug",
     "sub_subcategory",
     "sub_subcategory_slug",
+    "taxonomy_level_0",
+    "taxonomy_level_0_slug",
+    "taxonomy_level_1",
+    "taxonomy_level_1_slug",
+    "taxonomy_level_2",
+    "taxonomy_level_2_slug",
+    "taxonomy_level_3",
+    "taxonomy_level_3_slug",
+    "taxonomy_level_4",
+    "taxonomy_level_4_slug",
     "technology_variant",
     "canonical_technology_name",
     "raw_technology_name",
@@ -310,8 +320,6 @@ def normalize_record(
         if key in raw:
             record[key] = normalize_missing(raw.get(key))
     if fill_defaults:
-        if not record["category"]:
-            record["category"] = tax.category_display
         if not record["taxonomy_version"]:
             record["taxonomy_version"] = tax.taxonomy_version or TAXONOMY_VERSION
         if not record["record_id"]:
@@ -349,6 +357,45 @@ def normalize_record(
             record["canonical_technology_name"] = (
                 record["technology_variant"] or record["raw_technology_name"]
             )
+        from pipeline.cementitious.taxonomy_migration import apply_decarbonization_path
+
+        filled = apply_decarbonization_path(record, runtime=tax)
+        for key in RECORD_FIELDS:
+            if key.startswith("taxonomy_level_"):
+                record[key] = filled.get(key) or record.get(key) or ""
+        if not record.get("sub_subcategory_slug") and record.get("taxonomy_level_1"):
+            from pipeline.cementitious.decarbonization_taxonomy import (
+                get_decarbonization_taxonomy,
+            )
+            from pipeline.cementitious.paths import is_taxonomy_na
+            from pipeline.cementitious.taxonomy_migration import (
+                runtime_assignment_for_decarb_node,
+            )
+
+            labels = [
+                str(record.get(f"taxonomy_level_{i}") or "")
+                for i in range(5)
+                if str(record.get(f"taxonomy_level_{i}") or "")
+                and not is_taxonomy_na(str(record.get(f"taxonomy_level_{i}") or ""))
+            ]
+            if len(labels) >= 2:
+                try:
+                    node = get_decarbonization_taxonomy().resolve_path_labels(labels)
+                    assignment = runtime_assignment_for_decarb_node(node, runtime=tax)
+                    if assignment:
+                        for key, value in assignment.items():
+                            if not record.get(key):
+                                record[key] = value
+                except ValueError:
+                    pass
+        if not record["category"]:
+            if record.get("taxonomy_level_1") and record["taxonomy_level_1"] not in {
+                "",
+                "N.A.",
+            }:
+                record["category"] = record["taxonomy_level_1"]
+            else:
+                record["category"] = tax.category_display
     # Normalize binder JSON if provided as list
     components = raw.get("binder_components")
     if components and isinstance(components, list):
@@ -380,25 +427,49 @@ def validate_records(
     seen_ids: set[str] = set()
     for raw in records:
         record = normalize_record(raw, taxonomy=tax)
-        required = [
-            record["category"],
-            record["subcategory"],
-            record["subcategory_slug"],
-            record["sub_subcategory"],
-            record["sub_subcategory_slug"],
-            record["taxonomy_version"],
-            record["record_id"],
-        ]
-        if any(is_missing(v) for v in required):
-            result.missing_taxonomy.append(record)
-            continue
-        errors = tax.validate_assignment(
-            category=record["category"],
-            subcategory=record["subcategory"],
-            subcategory_slug=record["subcategory_slug"],
-            sub_subcategory=record["sub_subcategory"],
-            sub_subcategory_slug=record["sub_subcategory_slug"],
-        )
+        has_old = bool(record.get("subcategory_slug") and record.get("sub_subcategory_slug"))
+        has_new = bool(record.get("taxonomy_level_1")) and record.get("taxonomy_level_1") not in {
+            "",
+            "N.A.",
+        }
+        if has_old or not has_new:
+            required = [
+                record["category"],
+                record["subcategory"],
+                record["subcategory_slug"],
+                record["sub_subcategory"],
+                record["sub_subcategory_slug"],
+                record["taxonomy_version"],
+                record["record_id"],
+            ]
+            if any(is_missing(v) for v in required):
+                result.missing_taxonomy.append(record)
+                continue
+            errors = tax.validate_assignment(
+                category=record["category"],
+                subcategory=record["subcategory"],
+                subcategory_slug=record["subcategory_slug"],
+                sub_subcategory=record["sub_subcategory"],
+                sub_subcategory_slug=record["sub_subcategory_slug"],
+            )
+        else:
+            if is_missing(record["record_id"]) or is_missing(record.get("taxonomy_level_0")):
+                result.missing_taxonomy.append(record)
+                continue
+            errors = []
+            try:
+                from pipeline.cementitious.decarbonization_taxonomy import (
+                    get_decarbonization_taxonomy,
+                )
+
+                labels = [
+                    record.get(f"taxonomy_level_{i}") or ""
+                    for i in range(5)
+                    if record.get(f"taxonomy_level_{i}") not in {"", "N.A.", None}
+                ]
+                get_decarbonization_taxonomy().resolve_path_labels(labels)
+            except ValueError as exc:
+                errors.append(str(exc))
         if record["record_id"] in seen_ids:
             errors.append(f"duplicate record_id: {record['record_id']}")
         seen_ids.add(record["record_id"])
@@ -436,6 +507,10 @@ def validate_records(
 
 
 RECORD_SORT_KEYS = (
+    "taxonomy_level_1_slug",
+    "taxonomy_level_2_slug",
+    "taxonomy_level_3_slug",
+    "taxonomy_level_4_slug",
     "subcategory_slug",
     "sub_subcategory_slug",
     "canonical_technology_name",
@@ -477,7 +552,7 @@ def schema_manifest() -> dict[str, Any]:
         "record_fields": list(RECORD_FIELDS),
         "citation_fields": list(CITATION_FIELDS),
         "proposal_fields": list(PROPOSAL_FIELDS),
-        "missing_value_convention": "blank CSV cell / null JSON",
+        "missing_value_convention": "blank CSV cell / null JSON; taxonomy_level_* uses N.A. when a deeper level is unclassified",
         "confidence_levels": list(CONFIDENCE_LEVELS),
         "classification_basis": list(CLASSIFICATION_BASIS),
         "duplicate_statuses": list(DUPLICATE_STATUSES),

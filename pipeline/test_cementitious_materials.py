@@ -502,6 +502,24 @@ class ExportTests(unittest.TestCase):
             self.assertEqual(len(list((out / "subcategories").glob("*.csv"))), 9)
             # All 58 sub-subcategory files
             self.assertEqual(len(list((out / "sub_subcategories").glob("*.csv"))), 58)
+            # User-facing tree is nested and omits empty partitions.
+            user_root = out / "cementitious_materials_results"
+            self.assertTrue((user_root / "cementitious_materials_all_records.csv").is_file())
+            self.assertTrue(
+                (user_root / "category_csvs" / "cement_plant_carbon_capture.csv").is_file()
+            )
+            self.assertTrue(
+                (
+                    user_root
+                    / "subcategory_csvs"
+                    / "cement_plant_carbon_capture"
+                    / "chemical_absorption.csv"
+                ).is_file()
+            )
+            self.assertFalse((user_root / "category_csvs" / "biocements.csv").exists())
+            self.assertFalse(
+                (user_root / "subcategory_csvs" / "alternative_cement_chemistries" / "biocements.csv").exists()
+            )
 
     def test_selective_exports(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

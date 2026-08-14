@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import heapq
 import json
 import logging
 import os
@@ -15,6 +16,7 @@ from pipeline.cementitious.dedupe import deduplicate_records, write_dedupe_audit
 from pipeline.cementitious.export_partitions import export_taxonomy_partitions, write_csv
 from pipeline.cementitious.extraction import (
     classify_and_extract,
+    classify_and_extract_records,
     keyword_screen,
     llm_screen,
 )
@@ -677,8 +679,24 @@ def _score_candidate(row: dict[str, Any], taxonomy: Taxonomy) -> float:
         score += 0.5
     text = " ".join(
         str(row.get(k) or "")
-        for k in ("title", "abstract", "matched_taxonomy_branches", "screening_evidence")
+        for k in (
+            "title",
+            "abstract",
+            "matched_taxonomy_branches",
+            "screening_evidence",
+            "suggested_level_1",
+        )
     ).casefold()
+    l1 = row.get("suggested_level_1") or []
+    if isinstance(l1, list) and l1:
+        score += 0.5 * min(len(l1), 3)
+    from pipeline.cementitious.decarb_literature import LEVEL_1_CUES
+
+    for cues in LEVEL_1_CUES.values():
+        for term in cues[:4]:
+            if term in text:
+                score += 0.15
+                break
     for node in taxonomy.all_nodes():
         for term in node.retrieval_query_terms[:5]:
             if term.casefold() in text:
@@ -715,32 +733,105 @@ def rank_and_plan_extraction(
     if not screening_path.is_file():
         raise ShardError(f"Missing screening results: {screening_path}")
 
-    rows = read_jsonl(screening_path)
-    relevant = [r for r in rows if r.get("is_relevant")]
-    # Rank
-    ranked = sorted(relevant, key=lambda r: _score_candidate(r, tax), reverse=True)
-
     global_top = top_n
     if global_top is None:
         raw = os.getenv("TOP_N", os.getenv("TOP_N_SOURCES", "50")).strip()
         global_top = int(raw or 50)
 
-    # Optional selection filters using matched branches text
+    wanted_cf: set[str] = set()
     if selected_subcategories or selected_sub_subcategories:
         wanted = {
             *(selected_subcategories or []),
             *(selected_sub_subcategories or []),
         }
         wanted_cf = {w.casefold().replace(" ", "_") for w in wanted}
-        filtered = []
-        for row in ranked:
-            blob = str(row.get("matched_taxonomy_branches") or "").casefold().replace(" ", "_")
-            title = str(row.get("title") or "").casefold()
-            if any(w in blob or w.replace("_", " ") in title for w in wanted_cf):
-                filtered.append(row)
-        # If filter empties the set, keep ranked (screening may not have branch labels)
-        if filtered:
-            ranked = filtered
+
+    def _passes_selection(row: dict[str, Any]) -> bool:
+        if not wanted_cf:
+            return True
+        blob = str(row.get("matched_taxonomy_branches") or "").casefold().replace(" ", "_")
+        title = str(row.get("title") or "").casefold()
+        return any(w in blob or w.replace("_", " ") in title for w in wanted_cf)
+
+    # Stream screening JSONL. Keep a bounded heap of the global TOP_N (or per-branch
+    # heaps when caps are set). Do not materialize the full 159k screening file.
+    use_branch_caps = bool(top_n_per_subcategory or top_n_per_sub_subcategory)
+    selected_filter_hits = 0
+    scanned = 0
+    relevant_seen = 0
+    # Min-heaps of (score, -idx, row) so earlier file order wins ties.
+    global_heap: list[tuple[float, int, dict[str, Any]]] = []
+    branch_heaps: dict[str, list[tuple[float, int, dict[str, Any]]]] = {}
+    filtered_heap: list[tuple[float, int, dict[str, Any]]] = []
+
+    for row in iter_jsonl(screening_path):
+        scanned += 1
+        if scanned % 2000 == 0:
+            check_soft_memory_ceiling()
+        if not row.get("is_relevant"):
+            continue
+        relevant_seen += 1
+        score = float(_score_candidate(row, tax))
+        item = (score, -scanned, row)
+        if wanted_cf:
+            if _passes_selection(row):
+                selected_filter_hits += 1
+                cap = max(0, global_top)
+                if cap <= 0:
+                    continue
+                if len(filtered_heap) < cap:
+                    heapq.heappush(filtered_heap, item)
+                elif item[0] > filtered_heap[0][0] or (
+                    item[0] == filtered_heap[0][0] and item[1] > filtered_heap[0][1]
+                ):
+                    heapq.heapreplace(filtered_heap, item)
+            continue
+        if use_branch_caps:
+            branch = str(row.get("matched_taxonomy_branches") or "unknown").casefold()
+            cap = top_n_per_sub_subcategory or top_n_per_subcategory or global_top
+            bucket = branch_heaps.setdefault(branch, [])
+            if len(bucket) < cap:
+                heapq.heappush(bucket, item)
+            elif item[0] > bucket[0][0] or (item[0] == bucket[0][0] and item[1] > bucket[0][1]):
+                heapq.heapreplace(bucket, item)
+            continue
+        cap = max(0, global_top)
+        if cap <= 0:
+            continue
+        if len(global_heap) < cap:
+            heapq.heappush(global_heap, item)
+        elif item[0] > global_heap[0][0] or (item[0] == global_heap[0][0] and item[1] > global_heap[0][1]):
+            heapq.heapreplace(global_heap, item)
+
+    if wanted_cf and filtered_heap:
+        ranked_items = filtered_heap
+    elif wanted_cf:
+        # Selection emptied the set; screening may lack branch labels — fall back to global heap.
+        # Re-scan would be expensive; keep relevant_seen via a second pass only if needed.
+        ranked_items = []
+        scanned = 0
+        for row in iter_jsonl(screening_path):
+            scanned += 1
+            if not row.get("is_relevant"):
+                continue
+            score = float(_score_candidate(row, tax))
+            item = (score, -scanned, row)
+            cap = max(0, global_top)
+            if cap <= 0:
+                break
+            if len(ranked_items) < cap:
+                heapq.heappush(ranked_items, item)
+            elif item[0] > ranked_items[0][0] or (
+                item[0] == ranked_items[0][0] and item[1] > ranked_items[0][1]
+            ):
+                heapq.heapreplace(ranked_items, item)
+    elif use_branch_caps:
+        ranked_items = [item for bucket in branch_heaps.values() for item in bucket]
+    else:
+        ranked_items = global_heap
+
+    ranked = [item[2] for item in sorted(ranked_items, key=lambda t: (t[0], t[1]), reverse=True)]
+    del ranked_items, global_heap, branch_heaps, filtered_heap
 
     policy = {
         "global_top_n": global_top,
@@ -904,15 +995,27 @@ def extract_shard(
     started = time.time()
     start_iso = _now()
     tax = taxonomy or get_taxonomy()
+    telemetry = start_stage_telemetry(
+        "extract",
+        shard_id=shard_id,
+        input_record_count=int(entry.get("record_count") or 0),
+    )
 
     ranked_path = layout["metadata"] / "ranked_candidates.jsonl"
-    all_candidates = {c["candidate_id"]: c for c in read_jsonl(ranked_path)}
     assigned_ids = list(entry["candidate_ids"])
-    assigned = []
-    for cid in assigned_ids:
-        if cid not in all_candidates:
-            raise ShardError(f"Candidate {cid} missing from ranked_candidates.jsonl")
-        assigned.append(all_candidates[cid])
+    wanted = set(assigned_ids)
+    assigned: list[dict[str, Any]] = []
+    for cand in iter_jsonl(ranked_path):
+        cid = cand.get("candidate_id")
+        if cid in wanted:
+            assigned.append(cand)
+            if len(assigned) == len(wanted):
+                break
+    missing = wanted - {c.get("candidate_id") for c in assigned}
+    if missing:
+        finish_stage_telemetry(telemetry, out, status="error")
+        raise ShardError(f"Candidate {sorted(missing)[0]} missing from ranked_candidates.jsonl")
+    assigned.sort(key=lambda c: assigned_ids.index(c["candidate_id"]))
 
     failed_dir = layout["failed_llm"] / f"extraction_shard_{zero_pad_shard_id(shard_id)}"
     failed_dir.mkdir(parents=True, exist_ok=True)
@@ -920,67 +1023,89 @@ def extract_shard(
     extracted: list[dict[str, Any]] = []
     citations: list[dict[str, Any]] = []
     failed = 0
-    for cand in assigned:
-        # Reconstruct a minimal paper-like record from screening fields
-        paper = {
-            "title": cand.get("title") or "",
-            "abstract": cand.get("abstract") or "",
-            "doi": cand.get("doi") or "",
-            "year": cand.get("year") or "",
-        }
-        # Preserve paper_id for source_id continuity
-        try:
-            row, proposal = classify_and_extract(
-                paper,
-                taxonomy=tax,
-                model=model,
-                selected_sub_slugs=selected_sub_slugs,
-                selected_ss_slugs=selected_ss_slugs,
-                allow_proposals=True,
-                failed_dir=failed_dir,
-                source_type="Literature",
-                keyword_only=keyword_only,
-            )
-        except Exception as exc:
-            failed += 1
-            extracted.append(
-                {
-                    "shard_id": shard_id,
-                    "candidate_id": cand["candidate_id"],
-                    "corpus_index": cand.get("corpus_index"),
-                    "paper_id": cand.get("paper_id"),
-                    "extraction_error": str(exc),
-                    "record_id": f"failed_{cand['candidate_id']}",
-                }
-            )
-            continue
+    try:
+        for cand in assigned:
+            check_soft_memory_ceiling(telemetry=telemetry)
+            paper = {
+                "title": cand.get("title") or "",
+                "abstract": cand.get("abstract") or "",
+                "doi": cand.get("doi") or "",
+                "year": cand.get("year") or "",
+            }
+            try:
+                rows, proposal = classify_and_extract_records(
+                    paper,
+                    taxonomy=tax,
+                    model=model,
+                    selected_sub_slugs=selected_sub_slugs,
+                    selected_ss_slugs=selected_ss_slugs,
+                    allow_proposals=True,
+                    failed_dir=failed_dir,
+                    source_type="Literature",
+                    keyword_only=keyword_only,
+                )
+            except ControlledMemoryStop:
+                raise
+            except Exception as exc:
+                failed += 1
+                extracted.append(
+                    {
+                        "shard_id": shard_id,
+                        "candidate_id": cand["candidate_id"],
+                        "corpus_index": cand.get("corpus_index"),
+                        "paper_id": cand.get("paper_id"),
+                        "extraction_error": str(exc),
+                        "record_id": f"failed_{cand['candidate_id']}",
+                    }
+                )
+                continue
 
-        if row:
-            row["shard_id"] = shard_id
-            row["candidate_id"] = cand["candidate_id"]
-            row["corpus_index"] = cand.get("corpus_index")
-            if not row.get("source_id"):
-                row["source_id"] = cand.get("paper_id") or ""
-            extracted.append(row)
-            citations.append({**citation_from_record(row), "shard_id": shard_id})
-        else:
-            failed += 1
-            extracted.append(
-                {
-                    "shard_id": shard_id,
-                    "candidate_id": cand["candidate_id"],
-                    "corpus_index": cand.get("corpus_index"),
-                    "paper_id": cand.get("paper_id"),
-                    "extraction_error": "not_relevant_or_unresolved",
-                    "record_id": f"empty_{cand['candidate_id']}",
-                    "taxonomy_proposal": proposal or {},
-                }
-            )
+            if rows:
+                related_ids = [r.get("record_id") or "" for r in rows if r.get("record_id")]
+                for i, row in enumerate(rows):
+                    cid = cand["candidate_id"] if i == 0 else f"{cand['candidate_id']}#{i + 1}"
+                    row["shard_id"] = shard_id
+                    row["candidate_id"] = cid
+                    row["corpus_index"] = cand.get("corpus_index")
+                    if not row.get("source_id"):
+                        row["source_id"] = cand.get("paper_id") or ""
+                    if len(rows) > 1:
+                        row["related_record_ids"] = ";".join(
+                            x for x in related_ids if x and x != row.get("record_id")
+                        )
+                    extracted.append(row)
+                    citations.append({**citation_from_record(row), "shard_id": shard_id})
+            else:
+                failed += 1
+                extracted.append(
+                    {
+                        "shard_id": shard_id,
+                        "candidate_id": cand["candidate_id"],
+                        "corpus_index": cand.get("corpus_index"),
+                        "paper_id": cand.get("paper_id"),
+                        "extraction_error": "not_relevant_or_unresolved",
+                        "record_id": f"empty_{cand['candidate_id']}",
+                        "taxonomy_proposal": proposal or {},
+                    }
+                )
+    except ControlledMemoryStop:
+        finish_stage_telemetry(
+            telemetry, out, status="soft_memory_stop", records_processed=len(extracted)
+        )
+        return {
+            "status": "soft_memory_stop",
+            "shard_id": shard_id,
+            "processed": len(extracted),
+            "output": str(output_path),
+        }
 
     atomic_write_jsonl(output_path, extracted)
     atomic_write_jsonl(citations_path, citations)
     _validate(output_path)
     write_marker(marker_path)
+    finish_stage_telemetry(
+        telemetry, out, status="complete", records_processed=len(assigned)
+    )
 
     # Confirm we did not create forbidden stage markers from this task
     for path in forbidden:

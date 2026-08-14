@@ -15,7 +15,7 @@ from typing import Any
 from pipeline.cementitious import RESULTS_DIR_NAME, SCHEMA_VERSION, TAXONOMY_VERSION
 from pipeline.cementitious.dedupe import deduplicate_records, write_dedupe_audit
 from pipeline.cementitious.export_partitions import export_taxonomy_partitions, write_csv
-from pipeline.cementitious.extraction import classify_and_extract, screen_records
+from pipeline.cementitious.extraction import classify_and_extract_records, screen_records
 from pipeline.cementitious.migrate_carbon_capture import migrate_carbon_capture
 from pipeline.cementitious.paths import ensure_730_layout, get_results_root, resolve_output_dir
 from pipeline.cementitious.qc import run_qc_pass
@@ -303,7 +303,7 @@ def run_pipeline(config: RunConfig) -> dict[str, Any]:
         if not extract_done:
             for rec in candidates:
                 try:
-                    row, proposal = classify_and_extract(
+                    rows, proposal = classify_and_extract_records(
                         rec,
                         taxonomy=taxonomy,
                         model=config.model,
@@ -318,7 +318,7 @@ def run_pipeline(config: RunConfig) -> dict[str, Any]:
                     logger.warning("Extraction failed: %s", exc)
                     get_call_metrics().record_llm_fallback(reason=str(exc))
                     continue
-                if row:
+                for row in rows:
                     row["evidence_origin"] = "Literature"
                     if ss_slugs and row.get("sub_subcategory_slug") not in ss_slugs:
                         continue

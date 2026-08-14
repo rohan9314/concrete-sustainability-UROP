@@ -46,4 +46,5 @@ python -m pipeline.cementitious.cluster export \
   "${FORCE_FLAG[@]}"
 
 echo "Export complete -> $OUT"
-echo "All records: $OUT/all_records/cementitious_materials_all_records.csv"
+echo "User-facing master: $OUT/cementitious_materials_results/cementitious_materials_all_records.csv"
+echo "Internal/compat master: $OUT/all_records/cementitious_materials_all_records.csv"

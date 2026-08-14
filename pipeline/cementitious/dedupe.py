@@ -40,6 +40,8 @@ def exact_duplicate_key(record: dict[str, Any]) -> str:
         _norm(record.get("co2_reduction_value")),
         _norm(record.get("compressive_strength_value")),
         _norm(record.get("sub_subcategory_slug")),
+        _norm(record.get("taxonomy_level_3")),
+        _norm(record.get("taxonomy_level_4")),
     ]
     blob = "|".join(parts)
     return hashlib.sha1(blob.encode("utf-8")).hexdigest()

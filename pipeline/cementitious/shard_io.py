@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import csv
 import json
 import os
 import socket
@@ -37,6 +38,37 @@ def atomic_write_text(path: Path, text: str) -> Path:
 
 def atomic_write_json(path: Path, payload: Any) -> Path:
     return atomic_write_text(path, json.dumps(payload, indent=2, ensure_ascii=False) + "\n")
+
+
+def atomic_write_csv(
+    path: Path,
+    fieldnames: tuple[str, ...] | list[str],
+    rows: Iterable[dict[str, Any]],
+) -> Path:
+    """Write a CSV via temp-file + os.replace so a crash cannot leave a truncated file."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".csv", dir=str(path.parent))
+    tmp_path = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="") as handle:
+            writer = csv.DictWriter(
+                handle,
+                fieldnames=list(fieldnames),
+                extrasaction="ignore",
+                quoting=csv.QUOTE_MINIMAL,
+            )
+            writer.writeheader()
+            for row in rows:
+                writer.writerow({k: row.get(k, "") for k in fieldnames})
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(tmp_path, path)
+    except Exception:
+        if tmp_path.exists():
+            tmp_path.unlink(missing_ok=True)
+        raise
+    return path
 
 
 def atomic_write_jsonl(path: Path, rows: Iterable[dict[str, Any]]) -> Path:

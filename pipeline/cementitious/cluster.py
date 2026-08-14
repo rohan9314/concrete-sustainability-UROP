@@ -278,6 +278,8 @@ def main(argv: list[str] | None = None) -> int:
             selected_ss_slugs=_csv_env("SELECTED_SUB_SUBCATEGORIES") or None,
         )
         print(json.dumps(result, indent=2, default=str))
+        if result.get("status") == "soft_memory_stop":
+            return 75
         return 0
 
     if args.command == "merge-extract":
@@ -304,6 +306,8 @@ def main(argv: list[str] | None = None) -> int:
             limits=load_web_limits(),
         )
         print(json.dumps(result, indent=2, default=str))
+        if result.get("status") == "soft_memory_stop":
+            return 75
         return 0
 
     if args.command == "merge-web-search":
@@ -330,6 +334,8 @@ def main(argv: list[str] | None = None) -> int:
             limits=load_web_limits(),
         )
         print(json.dumps(result, indent=2, default=str))
+        if result.get("status") == "soft_memory_stop":
+            return 75
         return 0
 
     if args.command == "merge-web-extract":

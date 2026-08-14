@@ -15,7 +15,10 @@ from typing import Any
 from urllib.parse import urlparse
 
 from pipeline.cementitious.extraction import classify_and_extract
-from pipeline.cementitious.memory import check_soft_memory_ceiling
+from pipeline.cementitious.memory import (
+    ControlledMemoryStop,
+    check_soft_memory_ceiling,
+)
 from pipeline.cementitious.schema import (
     RECORD_FIELDS,
     normalize_record,
@@ -37,12 +40,22 @@ from pipeline.cementitious.shard_io import (
 from pipeline.cementitious.taxonomy import Taxonomy, get_taxonomy
 from pipeline.cementitious.web_config import WebLimits, load_web_limits
 from pipeline.cementitious.web_queries import plan_web_queries
+from pipeline.cementitious.web_scope import (
+    copy_taxonomy_fields,
+    resolve_web_search_scope,
+    searchable_node_summaries,
+    stamp_search_intent_taxonomy,
+    write_web_search_scope_manifest,
+)
 from pipeline.cementitious.web_tavily import (
     extract_page_text,
     get_tavily_client,
     tavily_search,
 )
-from pipeline.cementitious.source_classification import classify_source_type
+from pipeline.cementitious.source_classification import (
+    authority_rank_for_source_type,
+    classify_source_type,
+)
 from pipeline.cementitious.evidence_alignment import align_record_evidence
 from pipeline.cementitious.web_url import domain_of, normalize_url
 from pipeline.llm_utils import DEFAULT_MODEL
@@ -56,6 +69,33 @@ class WebShardError(RuntimeError):
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _web_search_intent_record(src: dict[str, Any], text: str) -> dict[str, Any]:
+    """Minimal web record when the cementitious extractor finds no 9×58 match."""
+    l4 = str(src.get("taxonomy_level_4") or "")
+    l3 = str(src.get("taxonomy_level_3") or "")
+    tech = l4 if l4 not in {"", "N.A."} else l3
+    evidence = (text or src.get("snippet") or "")[:4000]
+    row = {
+        "canonical_technology_name": tech or src.get("title") or "",
+        "raw_technology_name": src.get("title") or tech,
+        "source_title": src.get("title") or "",
+        "evidence_text": evidence,
+        "evidence_page_or_section": "web page",
+        "source_url": src.get("url") or "",
+        "source_type": src.get("source_type_guess") or "Other Web Source",
+        "extraction_confidence": "Low",
+        "taxonomy_confidence": "Medium",
+        "classification_basis": "Web search intent",
+        "classification_reasoning": (
+            "Assigned from the canonical web-search node because the cementitious "
+            "extractor did not match the 9×58 runtime taxonomy."
+        ),
+        "evidence_origin": "Web",
+    }
+    stamp_search_intent_taxonomy(row, src)
+    return row
 
 
 def _load_manifest(path: Path) -> list[dict[str, Any]]:
@@ -123,6 +163,31 @@ def plan_web_query_shards(
         selected_subcategories=selected_subcategories,
         selected_sub_subcategories=selected_sub_subcategories,
     )
+    scope = resolve_web_search_scope(
+        selected_subcategories=selected_subcategories,
+        selected_sub_subcategories=selected_sub_subcategories,
+    )
+    nodes = searchable_node_summaries() if scope == "canonical" else []
+    if scope != "canonical":
+        seen: dict[str, dict[str, Any]] = {}
+        for q in queries:
+            key = str(q.get("taxonomy_path") or q.get("sub_subcategory_slug") or q.get("query_id"))
+            if key in seen:
+                continue
+            seen[key] = {
+                "path": q.get("taxonomy_path") or "",
+                "path_labels": [
+                    q.get(f"taxonomy_level_{i}")
+                    for i in range(5)
+                    if q.get(f"taxonomy_level_{i}")
+                ],
+                "slug": q.get("web_search_node_slug") or q.get("sub_subcategory_slug") or "",
+                "label": q.get("sub_subcategory") or q.get("subcategory") or "",
+                "level": q.get("taxonomy_search_level"),
+                "level_1": q.get("taxonomy_level_1") or "",
+            }
+        nodes = list(seen.values())
+    write_web_search_scope_manifest(out, queries=queries, scope=scope, nodes=nodes)
     atomic_write_json(layout["metadata"] / "web_queries.json", queries)
 
     shards: list[dict[str, Any]] = []
@@ -163,6 +228,8 @@ def plan_web_query_shards(
         "shard_count": len(shards),
         "array_range": array_range,
         "limits": lim.to_dict(),
+        "web_search_scope": scope,
+        "searched_node_count": len(nodes),
     }
 
 
@@ -218,19 +285,22 @@ def web_search_shard(
     failed_queries = 0
     api_calls = 0
 
-    for query in assigned:
-        results, meta = tavily_search(
-            client,
-            query["query_text"],
-            max_results=int(query.get("maximum_results") or lim.results_per_query),
-            timeout=lim.request_timeout,
-            max_retries=lim.max_retries,
-        )
-        api_calls += meta.get("attempts", 1)
-        if not meta.get("ok"):
-            failed_queries += 1
-            rows.append(
-                {
+    try:
+        for query in assigned:
+            check_soft_memory_ceiling(telemetry=telemetry)
+            results, meta = tavily_search(
+                client,
+                query["query_text"],
+                max_results=int(query.get("maximum_results") or lim.results_per_query),
+                timeout=lim.request_timeout,
+                max_retries=lim.max_retries,
+            )
+            api_calls += meta.get("attempts", 1)
+            if lim.rate_limit_sleep_s > 0:
+                time.sleep(float(lim.rate_limit_sleep_s))
+            if not meta.get("ok"):
+                failed_queries += 1
+                fail_row = {
                     "query_id": query["query_id"],
                     "query_text": query["query_text"],
                     "subcategory_slug": query["subcategory_slug"],
@@ -252,17 +322,17 @@ def web_search_shard(
                     "sub_subcategory": query["sub_subcategory"],
                     "technology_variant": query.get("technology_variant") or "",
                 }
-            )
-            continue
-        for rank, item in enumerate(results, start=1):
-            url = item["url"]
-            domain = domain_of(url)
-            if lim.domain_denylist and domain in lim.domain_denylist:
+                copy_taxonomy_fields(fail_row, query)
+                rows.append(fail_row)
                 continue
-            if lim.domain_allowlist and domain not in lim.domain_allowlist:
-                continue
-            rows.append(
-                {
+            for rank, item in enumerate(results, start=1):
+                url = item["url"]
+                domain = domain_of(url)
+                if lim.domain_denylist and domain in lim.domain_denylist:
+                    continue
+                if lim.domain_allowlist and domain not in lim.domain_allowlist:
+                    continue
+                hit = {
                     "query_id": query["query_id"],
                     "query_text": query["query_text"],
                     "subcategory_slug": query["subcategory_slug"],
@@ -279,12 +349,18 @@ def web_search_shard(
                     "snippet": item.get("snippet") or "",
                     "tavily_score": item.get("tavily_score"),
                     "raw_source_type": item.get("raw_source_type") or "",
-                    "raw_content": item.get("raw_content") or "",
+                    "raw_content": (item.get("raw_content") or "")[: int(lim.page_max_chars)],
                     "retrieval_timestamp": _now(),
                     "shard_id": shard_id,
                     "search_error": "",
                 }
-            )
+                copy_taxonomy_fields(hit, query)
+                rows.append(hit)
+    except ControlledMemoryStop:
+        finish_stage_telemetry(
+            telemetry, out, status="soft_memory_stop", records_processed=len(assigned)
+        )
+        return {"status": "soft_memory_stop", "shard_id": shard_id, "processed": len(rows)}
 
     atomic_write_jsonl(output_path, rows)
     _validate(output_path)
@@ -436,20 +512,35 @@ def merge_web_search(*, output_dir: str | Path) -> dict[str, Any]:
     lim = load_web_limits()
 
     missing: list[dict[str, Any]] = []
-    raw: list[dict[str, Any]] = []
-    for entry in shards:
-        sid = int(entry["shard_id"])
-        op = Path(entry["expected_output_path"])
-        mk = Path(entry["expected_marker_path"])
-        problems = []
-        if not op.is_file():
-            problems.append("missing_output")
-        if not mk.is_file():
-            problems.append("missing_marker")
-        if problems:
-            missing.append({"shard_id": sid, "problems": ";".join(problems), "path": str(op)})
-            continue
-        raw.extend(read_jsonl(op))
+    raw_path = layout["metadata"] / "web_search_results_raw.jsonl"
+    tmp_raw = raw_path.with_suffix(raw_path.suffix + ".tmp")
+    if tmp_raw.exists():
+        tmp_raw.unlink()
+    raw_result_count = 0
+    successful_queries: set[str] = set()
+    failed_queries: set[str] = set()
+    with tmp_raw.open("w", encoding="utf-8") as raw_h:
+        for entry in shards:
+            sid = int(entry["shard_id"])
+            op = Path(entry["expected_output_path"])
+            mk = Path(entry["expected_marker_path"])
+            problems = []
+            if not op.is_file():
+                problems.append("missing_output")
+            if not mk.is_file():
+                problems.append("missing_marker")
+            if problems:
+                missing.append({"shard_id": sid, "problems": ";".join(problems), "path": str(op)})
+                continue
+            for row in iter_jsonl(op):
+                raw_h.write(json.dumps(row, ensure_ascii=False) + "\n")
+                qid = str(row.get("query_id") or "")
+                if row.get("url"):
+                    raw_result_count += 1
+                    if qid:
+                        successful_queries.add(qid)
+                if row.get("search_error") and qid:
+                    failed_queries.add(qid)
 
     miss_path = layout["rejected"] / "missing_web_search_shards.csv"
     with miss_path.open("w", encoding="utf-8", newline="") as handle:
@@ -458,15 +549,16 @@ def merge_web_search(*, output_dir: str | Path) -> dict[str, Any]:
         for row in missing:
             w.writerow(row)
     if missing:
+        if tmp_raw.exists():
+            tmp_raw.unlink()
         raise WebShardError(f"merge-web-search failed: {len(missing)} incomplete shards")
+    os.replace(tmp_raw, raw_path)
 
-    atomic_write_jsonl(layout["metadata"] / "web_search_results_raw.jsonl", raw)
-
-    # URL dedupe preserving query provenance
+    # URL dedupe preserving query provenance — unique-URL dict only, not all raw rows.
     by_url: dict[str, dict[str, Any]] = {}
     url_query_map: list[dict[str, Any]] = []
     duplicate_url_count = 0
-    for row in raw:
+    for row in iter_jsonl(raw_path):
         url = row.get("url") or ""
         if not url:
             continue
@@ -498,11 +590,31 @@ def merge_web_search(*, output_dir: str | Path) -> dict[str, Any]:
             "query_texts": [row.get("query_text")],
         }
 
-    # Enforce branch and global URL caps
+    # Classify, rank by authority (lower is better), then enforce caps.
+    classified: list[tuple[int, float, dict[str, Any]]] = []
+    for norm, row in by_url.items():
+        source_cls = classify_source_type(
+            url=str(row.get("url") or ""),
+            title=str(row.get("title") or ""),
+            domain=str(row.get("domain") or ""),
+            raw_source_type=str(row.get("raw_source_type") or ""),
+        )
+        row["source_type_guess"] = source_cls.source_type
+        row["source_type_classification_method"] = source_cls.method
+        row["source_type_classification_reason"] = source_cls.reason
+        row["source_authority_rank"] = source_cls.authority_rank
+        score = float(row.get("tavily_score") or 0)
+        classified.append((source_cls.authority_rank, -score, row))
+    classified.sort(key=lambda item: (item[0], item[1]))
+
     branch_counts: Counter[str] = Counter()
     deduped: list[dict[str, Any]] = []
-    for norm, row in by_url.items():
-        branch = str(row.get("sub_subcategory_slug") or "unknown")
+    for _rank, _score, row in classified:
+        branch = str(
+            row.get("taxonomy_path")
+            or row.get("sub_subcategory_slug")
+            or "unknown"
+        )
         if branch_counts[branch] >= lim.max_urls_per_branch:
             continue
         if len(deduped) >= lim.max_total_urls:
@@ -519,14 +631,27 @@ def merge_web_search(*, output_dir: str | Path) -> dict[str, Any]:
         qmeta = queries.get((row.get("query_ids") or [None])[0]) or queries.get(row.get("query_id"))
         decision = _screen_web_result(row, qmeta)
         web_source_id = f"web:{zero_pad_shard_id(idx, 6)}"
-        source_cls = classify_source_type(
-            url=str(row.get("url") or ""),
-            title=str(row.get("title") or ""),
-            domain=str(row.get("domain") or ""),
-            raw_source_type=str(row.get("raw_source_type") or ""),
-        )
-        screened.append(
-            {
+        source_type = row.get("source_type_guess") or ""
+        source_method = row.get("source_type_classification_method") or ""
+        source_reason = row.get("source_type_classification_reason") or ""
+        if not source_type:
+            source_cls = classify_source_type(
+                url=str(row.get("url") or ""),
+                title=str(row.get("title") or ""),
+                domain=str(row.get("domain") or ""),
+                raw_source_type=str(row.get("raw_source_type") or ""),
+            )
+            source_type = source_cls.source_type
+            source_method = source_cls.method
+            source_reason = source_cls.reason
+            matched_rule = source_cls.matched_rule
+            authority = source_cls.authority_rank
+        else:
+            matched_rule = row.get("source_type_matched_rule") or ""
+            authority = row.get("source_authority_rank")
+            if authority is None:
+                authority = authority_rank_for_source_type(str(source_type))
+        screened_row = {
                 "web_source_id": web_source_id,
                 "url": row.get("url"),
                 "normalized_url": row.get("normalized_url"),
@@ -538,16 +663,18 @@ def merge_web_search(*, output_dir: str | Path) -> dict[str, Any]:
                 "relevance_decision": decision["relevance_decision"],
                 "relevance_score": decision["relevance_score"],
                 "matched_taxonomy_path": (
-                    f"{row.get('subcategory_slug')}/{row.get('sub_subcategory_slug')}"
+                    row.get("taxonomy_path")
+                    or f"{row.get('subcategory_slug')}/{row.get('sub_subcategory_slug')}"
                 ),
                 "screening_reason": decision["screening_reason"],
                 "screening_confidence": decision["screening_confidence"],
                 "query_ids": row.get("query_ids") or [row.get("query_id")],
                 "query_texts": row.get("query_texts") or [row.get("query_text")],
-                "source_type_guess": source_cls.source_type,
-                "source_type_classification_method": source_cls.method,
-                "source_type_classification_reason": source_cls.reason,
-                "source_type_matched_rule": source_cls.matched_rule,
+                "source_type_guess": source_type,
+                "source_type_classification_method": source_method,
+                "source_type_classification_reason": source_reason,
+                "source_type_matched_rule": matched_rule,
+                "source_authority_rank": authority,
                 "category": row.get("category"),
                 "subcategory": row.get("subcategory"),
                 "subcategory_slug": row.get("subcategory_slug"),
@@ -557,16 +684,16 @@ def merge_web_search(*, output_dir: str | Path) -> dict[str, Any]:
                 "retrieval_timestamp": row.get("retrieval_timestamp") or _now(),
                 "tavily_score": row.get("tavily_score"),
             }
-        )
+        copy_taxonomy_fields(screened_row, row)
+        screened.append(screened_row)
     atomic_write_jsonl(layout["metadata"] / "web_screening_results.jsonl", screened)
+    del by_url
 
-    successful_queries = len({r.get("query_id") for r in raw if r.get("url")})
-    failed_queries = len({r.get("query_id") for r in raw if r.get("search_error")})
     summary = {
         "query_count": len(queries),
-        "successful_query_count": successful_queries,
-        "failed_query_count": failed_queries,
-        "raw_result_count": sum(1 for r in raw if r.get("url")),
+        "successful_query_count": len(successful_queries),
+        "failed_query_count": len(failed_queries),
+        "raw_result_count": raw_result_count,
         "unique_url_count": len(deduped),
         "duplicate_url_count": duplicate_url_count,
         "results_by_subcategory": dict(
@@ -574,6 +701,9 @@ def merge_web_search(*, output_dir: str | Path) -> dict[str, Any]:
         ),
         "results_by_sub_subcategory": dict(
             Counter(r.get("sub_subcategory_slug") for r in deduped if r.get("url"))
+        ),
+        "results_by_taxonomy_path": dict(
+            Counter(r.get("taxonomy_path") for r in deduped if r.get("url"))
         ),
         "results_by_domain": dict(Counter(r.get("domain") for r in deduped if r.get("domain"))),
         "results_by_source_type": dict(
@@ -733,6 +863,7 @@ def web_extract_shard(
     fetched_ok = 0
 
     for src in assigned:
+        check_soft_memory_ceiling(telemetry=telemetry)
         text, content_source = extract_page_text(
             tavily_raw_content=str(src.get("raw_content") or ""),
             snippet=str(src.get("snippet") or ""),
@@ -797,15 +928,19 @@ def web_extract_shard(
             "doi": "",
             "url": src.get("url"),
         }
+        runtime_sub = src.get("subcategory_slug") if src.get("subcategory_slug") in tax.subcategories else None
+        runtime_ss = (
+            src.get("sub_subcategory_slug")
+            if src.get("sub_subcategory_slug") in tax.sub_subcategories
+            else None
+        )
         try:
             row, _proposal = classify_and_extract(
                 paper_like,
                 taxonomy=tax,
                 model=model,
-                selected_sub_slugs=[src["subcategory_slug"]] if src.get("subcategory_slug") else None,
-                selected_ss_slugs=[src["sub_subcategory_slug"]]
-                if src.get("sub_subcategory_slug")
-                else None,
+                selected_sub_slugs=[runtime_sub] if runtime_sub else None,
+                selected_ss_slugs=[runtime_ss] if runtime_ss else None,
                 allow_proposals=True,
                 failed_dir=fail_dir,
                 source_type=src.get("source_type_guess") or "Other Web Source",
@@ -826,20 +961,25 @@ def web_extract_shard(
             continue
 
         if not row:
-            failed += 1
-            extracted.append(
-                {
-                    "shard_id": shard_id,
-                    "web_source_id": src["web_source_id"],
-                    "record_id": f"empty_{src['web_source_id']}",
-                    "extraction_error": "unresolved_or_irrelevant",
-                    "evidence_origin": "Web",
-                    "source_url": src.get("url"),
-                }
-            )
-            continue
+            l1 = str(src.get("taxonomy_level_1") or "")
+            if l1 and l1 != "Cementitious Materials" and (text or src.get("snippet")):
+                row = _web_search_intent_record(src, text)
+            else:
+                failed += 1
+                extracted.append(
+                    {
+                        "shard_id": shard_id,
+                        "web_source_id": src["web_source_id"],
+                        "record_id": f"empty_{src['web_source_id']}",
+                        "extraction_error": "unresolved_or_irrelevant",
+                        "evidence_origin": "Web",
+                        "source_url": src.get("url"),
+                    }
+                )
+                continue
 
-        # Prefer taxonomy assignment from search intent if LLM left empty
+        # Search-intent taxonomy is authoritative for web records.
+        stamp_search_intent_taxonomy(row, src)
         if not row.get("sub_subcategory_slug") and src.get("sub_subcategory_slug"):
             row["subcategory"] = src.get("subcategory") or ""
             row["subcategory_slug"] = src.get("subcategory_slug") or ""
@@ -856,7 +996,9 @@ def web_extract_shard(
         row["final_resolved_url"] = src.get("final_resolved_url") or src.get("url") or ""
         row["domain"] = src.get("domain") or ""
         row["content_source"] = content_source
-        row["organization_or_publisher"] = src.get("domain") or ""
+        row["organization_or_publisher"] = src.get("organization_or_publisher") or src.get("domain") or ""
+        if not row.get("source_title"):
+            row["source_title"] = src.get("title") or ""
         # Re-classify with page text available (still deterministic; no LLM).
         source_cls = classify_source_type(
             url=str(src.get("url") or ""),
@@ -1185,7 +1327,12 @@ def merge_literature_and_web(*, output_dir: str | Path) -> dict[str, Any]:
                         "record_id": str(rec.get("record_id") or ""),
                         "canonical_technology_name": str(rec.get("canonical_technology_name") or ""),
                         "sub_subcategory_slug": str(rec.get("sub_subcategory_slug") or ""),
+                        "taxonomy_path": str(rec.get("taxonomy_path") or rec.get("taxonomy_level_3_slug") or ""),
+                        "taxonomy_level_3": str(rec.get("taxonomy_level_3") or ""),
+                        "taxonomy_level_4": str(rec.get("taxonomy_level_4") or ""),
                         "project_name": str(rec.get("project_name") or ""),
+                        "company_or_organization": str(rec.get("company_or_organization") or ""),
+                        "location": str(rec.get("location") or ""),
                     }
                     tech = stub["canonical_technology_name"].casefold()
                     ss = stub["sub_subcategory_slug"]
@@ -1239,10 +1386,26 @@ def merge_literature_and_web(*, output_dir: str | Path) -> dict[str, Any]:
                             continue
                         seen_lit.add(lid)
                         same_tech = bool(tech) and (
-                            ss == (lit.get("sub_subcategory_slug") or "")
+                            (
+                                ss
+                                and ss == (lit.get("sub_subcategory_slug") or "")
+                                or (
+                                    rec.get("taxonomy_level_3")
+                                    and rec.get("taxonomy_level_3") == (lit.get("taxonomy_level_3") or "")
+                                )
+                            )
                             and tech == (lit.get("canonical_technology_name") or "").casefold()
                         )
                         same_project = bool(pname) and pname == (lit.get("project_name") or "").casefold()
+                        if same_project:
+                            web_co = (rec.get("company_or_organization") or "").casefold()
+                            lit_co = (lit.get("company_or_organization") or "").casefold()
+                            web_loc = (rec.get("location") or "").casefold()
+                            lit_loc = (lit.get("location") or "").casefold()
+                            if (web_co and lit_co and web_co != lit_co) or (
+                                web_loc and lit_loc and web_loc != lit_loc
+                            ):
+                                same_project = False
                         if not (same_tech or same_project):
                             continue
                         related.append(lid)

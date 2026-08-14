@@ -4,8 +4,23 @@ from __future__ import annotations
 
 from typing import Any
 
-from pipeline.cementitious.taxonomy import Taxonomy, TaxonomyNode
+from pipeline.cementitious.decarbonization_taxonomy import (
+    TAXONOMY_NA,
+    DecarbNode,
+    get_decarbonization_taxonomy,
+)
+from pipeline.cementitious.paths import is_taxonomy_na
+from pipeline.cementitious.taxonomy import Taxonomy, TaxonomyNode, get_taxonomy
+from pipeline.cementitious.taxonomy_migration import apply_decarbonization_path
 from pipeline.cementitious.web_config import WebLimits
+from pipeline.cementitious.web_scope import (
+    WEB_SEARCH_SCOPE_CANONICAL,
+    copy_taxonomy_fields,
+    decarb_fields,
+    parse_web_search_levels,
+    resolve_web_search_scope,
+    searchable_web_nodes,
+)
 
 QUERY_TYPES = (
     "Technology Overview",
@@ -211,21 +226,297 @@ def _selected_scope(
     return parents, pairs
 
 
+def _enrich_runtime_query(query: dict[str, Any], taxonomy: Taxonomy) -> dict[str, Any]:
+    """Attach five-level columns to a 9×58 runtime query via the migration map."""
+    stub = {
+        "subcategory_slug": query.get("subcategory_slug") or "",
+        "sub_subcategory_slug": query.get("sub_subcategory_slug") or "",
+        "category": query.get("category") or taxonomy.category_display,
+        "subcategory": query.get("subcategory") or "",
+        "sub_subcategory": query.get("sub_subcategory") or "",
+    }
+    filled = apply_decarbonization_path(stub, runtime=taxonomy)
+    copy_taxonomy_fields(query, filled)
+    query.setdefault(
+        "taxonomy_path",
+        "/".join(
+            filled.get(f"taxonomy_level_{i}_slug") or ""
+            for i in range(5)
+            if filled.get(f"taxonomy_level_{i}") not in {"", None, TAXONOMY_NA, "N.A."}
+        ),
+    )
+    query.setdefault(
+        "web_search_node_slug",
+        query.get("sub_subcategory_slug") or query.get("subcategory_slug") or "",
+    )
+    query.setdefault("web_search_node_role", "searchable_technology")
+    query.setdefault(
+        "taxonomy_search_level",
+        3 if query.get("sub_subcategory_slug") else 2,
+    )
+    return query
+
+
+def _l1_query_context(level_1: str) -> str:
+    mapping = {
+        "Cementitious Materials": "cement concrete decarbonization",
+        "Aggregate Procurement": "concrete aggregate procurement",
+        "Concrete Design": "concrete mix design",
+        "Structural and Construction Design": "concrete structure construction",
+        "Operation": "concrete building operation",
+        "Policy": "cement concrete policy regulation",
+        "End-of-Life": "concrete demolition recycling end of life",
+    }
+    return mapping.get(level_1, "cement concrete decarbonization")
+
+
+def _contextual_query(node: DecarbNode, extra: str = "") -> str:
+    """Never emit a bare short label (OPC, Hydrogen) as a query."""
+    labels = list(node.path_labels)
+    l1 = labels[1] if len(labels) > 1 else ""
+    l2 = labels[2] if len(labels) > 2 else ""
+    l3 = labels[3] if len(labels) > 3 else ""
+    leaf = node.label
+    context = _l1_query_context(l1)
+    parts = [leaf]
+    if l3 and l3.casefold() != leaf.casefold():
+        parts.append(l3)
+    if l2 and l2.casefold() not in {leaf.casefold(), l3.casefold()}:
+        parts.append(l2)
+    parts.append(context)
+    if extra:
+        parts.append(extra)
+    return " ".join(p for p in parts if p)
+
+
+def _templates_for_decarb_node(node: DecarbNode) -> list[tuple[str, str]]:
+    name = node.label
+    context = _l1_query_context(node.path_labels[1] if len(node.path_labels) > 1 else "")
+    l1 = node.path_labels[1] if len(node.path_labels) > 1 else ""
+    l2 = node.path_labels[2] if len(node.path_labels) > 2 else ""
+    l3 = node.path_labels[3] if len(node.path_labels) > 3 else ""
+    templates: list[tuple[str, str]] = [
+        ("Technology Overview", _contextual_query(node)),
+        (
+            "Project or Deployment",
+            _contextual_query(node, "pilot OR demonstration OR commercial project"),
+        ),
+        (
+            "Company or Organization",
+            _contextual_query(node, "company OR technology provider OR project location"),
+        ),
+        (
+            "Performance",
+            _contextual_query(node, "capacity OR capture rate OR performance data emissions"),
+        ),
+        (
+            "Cost",
+            _contextual_query(node, "cost CAPEX OPEX energy requirement"),
+        ),
+        (
+            "Standards or Approval",
+            _contextual_query(node, "standard OR EPD OR ASTM OR government report"),
+        ),
+        ("Commercialization", _contextual_query(node, "commercial deployment")),
+    ]
+    joined = " ".join(node.path_labels).casefold()
+    if "carbon capture" in joined or "capture" in name.casefold():
+        templates[0] = ("Technology Overview", f"cement plant {name} carbon capture")
+        templates.append(("Energy", f"cement {name} carbon capture energy penalty"))
+        if "amine" in name.casefold() or "amine" in joined:
+            templates.extend(
+                [
+                    ("Project or Deployment", "cement plant amine CO2 capture"),
+                    ("Project or Deployment", "cement solvent carbon capture project"),
+                    ("Technology Overview", "cement post-combustion amine capture"),
+                    ("Project or Deployment", "cement plant chemical absorption demonstration"),
+                    ("Project or Deployment", "amine carbon capture cement pilot"),
+                ]
+            )
+    leaf_cf = name.casefold()
+    if leaf_cf == "opc" or "ordinary portland" in joined:
+        templates.extend(
+            [
+                ("Technology Overview", "ordinary portland cement decarbonization"),
+                ("Technology Overview", "OPC embodied carbon cement"),
+                ("Standards or Approval", "ASTM C150 portland cement carbon emissions"),
+            ]
+        )
+    if "hydrogen" in leaf_cf or "hydrogen" in joined:
+        templates.extend(
+            [
+                ("Technology Overview", "hydrogen cement kiln"),
+                ("Technology Overview", "hydrogen clinker production"),
+                ("Project or Deployment", "cement plant hydrogen heating"),
+            ]
+        )
+    if l2:
+        templates.append(("Technology Overview", f"{name} {l2} {context}"))
+    if l3 and l3.casefold() != leaf_cf:
+        templates.append(("Technology Overview", f"{name} {l3} {l1}"))
+    for alias in list(node.aliases)[:6]:
+        alias = str(alias).strip()
+        if not alias:
+            continue
+        templates.append(("Technology Overview", f"{alias} {l3} {context}".strip()))
+        templates.append(
+            ("Project or Deployment", f"{alias} pilot OR demonstration OR commercial {context}")
+        )
+    return templates
+
+
+def _cap_queries_preserving_coverage(
+    grouped: list[list[dict[str, Any]]],
+    max_total: int,
+) -> list[dict[str, Any]]:
+    """Keep at least one query per searchable node; cap only extra variants."""
+    floor: list[dict[str, Any]] = []
+    extra_buckets: list[list[dict[str, Any]]] = []
+    for group in grouped:
+        if not group:
+            continue
+        floor.append(group[0])
+        extra_buckets.append(list(group[1:]))
+    if max_total <= 0:
+        extras = [q for bucket in extra_buckets for q in bucket]
+        return floor + extras
+    remaining = max(0, max_total - len(floor))
+    extras: list[dict[str, Any]] = []
+    idx = 0
+    while len(extras) < remaining and any(extra_buckets):
+        bucket = extra_buckets[idx % len(extra_buckets)]
+        if bucket:
+            extras.append(bucket.pop(0))
+        idx += 1
+        if idx > 1_000_000:
+            break
+    return floor + extras
+
+
+def _cap_queries_round_robin(
+    grouped: list[list[dict[str, Any]]],
+    max_total: int,
+) -> list[dict[str, Any]]:
+    """Compatibility wrapper: never drops a node that has a query."""
+    return _cap_queries_preserving_coverage(grouped, max_total)
+
+
+def plan_canonical_web_queries(
+    limits: WebLimits,
+    *,
+    decarb=None,
+    runtime: Taxonomy | None = None,
+    include_parent_l3: bool = False,
+    levels: tuple[int, ...] | None = None,
+) -> list[dict[str, Any]]:
+    """Plan Tavily queries for every searchable canonical taxonomy node."""
+    tax = decarb or get_decarbonization_taxonomy()
+    runtime = runtime or get_taxonomy()
+    nodes = searchable_web_nodes(
+        tax,
+        include_parent_l3=include_parent_l3,
+        levels=levels or parse_web_search_levels(),
+    )
+    per_node = max(1, int(limits.queries_per_node or 1))
+    grouped: list[list[dict[str, Any]]] = []
+    seen_text: set[str] = set()
+    qid = 0
+    for node in nodes:
+        fields = decarb_fields(node, runtime=runtime)
+        templates = _templates_for_decarb_node(node)
+        positives = [node.label, *list(node.aliases)[:6]]
+        node_queries: list[dict[str, Any]] = []
+        for query_type, text in templates:
+            if len(node_queries) >= per_node:
+                break
+            key = text.casefold().strip()
+            if not key:
+                continue
+            if key in seen_text:
+                text = f"{text} {node.path_labels[-1] if node.path_labels else node.slug}"
+                key = text.casefold().strip()
+                if key in seen_text:
+                    text = f"{text} {node.path}"
+                    key = text.casefold().strip()
+                    if key in seen_text:
+                        continue
+            seen_text.add(key)
+            qid += 1
+            row = {
+                "query_id": f"wq_{qid:05d}",
+                "category": fields.get("category") or fields.get("taxonomy_level_1") or "",
+                "subcategory": fields.get("subcategory") or fields.get("taxonomy_level_2") or "",
+                "subcategory_slug": fields.get("subcategory_slug")
+                or fields.get("taxonomy_level_2_slug")
+                or "",
+                "sub_subcategory": fields.get("sub_subcategory") or node.label,
+                "sub_subcategory_slug": fields.get("sub_subcategory_slug") or node.slug,
+                "technology_variant": node.label if node.level == 4 else "",
+                "query_text": text,
+                "query_type": query_type if query_type in QUERY_TYPES else "Other",
+                "purpose": f"Discover web evidence for {node.label}",
+                "positive_terms": positives,
+                "negative_terms": list(DEFAULT_NEGATIVES),
+                "expected_source_types": list(EXPECTED_SOURCE_TYPES),
+                "maximum_results": limits.results_per_query,
+                "shard_id": None,
+                "query_scope": "canonical_technology",
+                "aliases_used": list(node.aliases),
+            }
+            row.update(fields)
+            node_queries.append(row)
+        if not node_queries:
+            text = _contextual_query(node, node.path)
+            qid += 1
+            row = {
+                "query_id": f"wq_{qid:05d}",
+                "category": fields.get("category") or fields.get("taxonomy_level_1") or "",
+                "subcategory": fields.get("subcategory") or fields.get("taxonomy_level_2") or "",
+                "subcategory_slug": fields.get("subcategory_slug") or "",
+                "sub_subcategory": node.label,
+                "sub_subcategory_slug": fields.get("sub_subcategory_slug") or node.slug,
+                "technology_variant": node.label if node.level == 4 else "",
+                "query_text": text,
+                "query_type": "Technology Overview",
+                "purpose": f"Discover web evidence for {node.label}",
+                "positive_terms": positives,
+                "negative_terms": list(DEFAULT_NEGATIVES),
+                "expected_source_types": list(EXPECTED_SOURCE_TYPES),
+                "maximum_results": limits.results_per_query,
+                "shard_id": None,
+                "query_scope": "canonical_technology",
+                "aliases_used": list(node.aliases),
+            }
+            row.update(fields)
+            node_queries.append(row)
+        grouped.append(node_queries)
+    queries = _cap_queries_preserving_coverage(grouped, limits.max_total_queries)
+    for i, query in enumerate(queries, start=1):
+        query["query_id"] = f"wq_{i:05d}"
+    return queries
+
+
 def plan_web_queries(
     taxonomy: Taxonomy,
     limits: WebLimits,
     *,
     selected_subcategories: list[str] | None = None,
     selected_sub_subcategories: list[str] | None = None,
+    web_search_scope: str | None = None,
 ) -> list[dict[str, Any]]:
     """
     Deterministic query generation for the selected taxonomy scope only.
 
-    Emits:
-    - up to WEB_QUERIES_PER_SUBCATEGORY overview queries per selected subcategory
-      (skipped when only sub-subcategories are selected);
-    - up to WEB_QUERIES_PER_SUB_SUBCATEGORY queries per selected sub-subcategory.
+    Full / unrestricted runs use the canonical five-level searchable-node set.
+    Explicit SELECTED_* (pilot smoke) keeps the legacy 9×58 planner.
     """
+    scope = web_search_scope or resolve_web_search_scope(
+        selected_subcategories=selected_subcategories,
+        selected_sub_subcategories=selected_sub_subcategories,
+    )
+    if scope == WEB_SEARCH_SCOPE_CANONICAL:
+        return plan_canonical_web_queries(limits, runtime=taxonomy)
+
     parents, pairs = _selected_scope(
         taxonomy,
         selected_subcategories=selected_subcategories,
@@ -252,26 +543,26 @@ def plan_web_queries(
             return False
         seen_text.add(key)
         qid += 1
-        queries.append(
-            {
-                "query_id": f"wq_{qid:05d}",
-                "category": taxonomy.category_display,
-                "subcategory": parent.display_name,
-                "subcategory_slug": parent.slug,
-                "sub_subcategory": child.display_name if child else "",
-                "sub_subcategory_slug": child.slug if child else "",
-                "technology_variant": variant,
-                "query_text": text,
-                "query_type": query_type if query_type in QUERY_TYPES else "Other",
-                "purpose": purpose,
-                "positive_terms": positive,
-                "negative_terms": negative,
-                "expected_source_types": list(EXPECTED_SOURCE_TYPES),
-                "maximum_results": limits.results_per_query,
-                "shard_id": None,
-                "query_scope": "sub_subcategory" if child else "subcategory",
-            }
-        )
+        row = {
+            "query_id": f"wq_{qid:05d}",
+            "category": taxonomy.category_display,
+            "subcategory": parent.display_name,
+            "subcategory_slug": parent.slug,
+            "sub_subcategory": child.display_name if child else "",
+            "sub_subcategory_slug": child.slug if child else "",
+            "technology_variant": variant,
+            "query_text": text,
+            "query_type": query_type if query_type in QUERY_TYPES else "Other",
+            "purpose": purpose,
+            "positive_terms": positive,
+            "negative_terms": negative,
+            "expected_source_types": list(EXPECTED_SOURCE_TYPES),
+            "maximum_results": limits.results_per_query,
+            "shard_id": None,
+            "query_scope": "sub_subcategory" if child else "subcategory",
+        }
+        _enrich_runtime_query(row, taxonomy)
+        queries.append(row)
         return True
 
     # 1) Subcategory-level overview queries

@@ -14,10 +14,21 @@ from pathlib import Path
 from typing import Any
 
 from pipeline.cementitious import SCHEMA_VERSION, TAXONOMY_VERSION
+from pipeline.cementitious.canonical_user_export import (
+    CanonicalExportError,
+    ensure_canonical_user_export_from_master,
+    user_facing_validation_checks,
+)
+from pipeline.cementitious.hierarchical_export import (
+    HierarchicalExportError,
+    ensure_hierarchical_export_from_master,
+    validate_hierarchical_export,
+)
 from pipeline.cementitious.paths import ensure_730_layout, safe_partition_filename
 from pipeline.cementitious.schema import CITATION_FIELDS, RECORD_FIELDS
 from pipeline.cementitious.shard_io import atomic_write_json
 from pipeline.cementitious.taxonomy import Taxonomy, get_taxonomy
+from pipeline.cementitious.web_scope import build_retrieval_coverage_manifest
 
 logger = logging.getLogger(__name__)
 
@@ -358,15 +369,19 @@ def build_validation_report(
         )
     )
 
+    def _canonical_ok(row: dict[str, Any]) -> bool:
+        l1 = str(row.get("taxonomy_level_1") or "").strip()
+        return bool(l1) and l1 not in {"", "N.A."}
+
     bad_sub = [
         r.get("record_id")
         for r in master_rows
-        if (r.get("subcategory_slug") or "") not in valid_subs
+        if (r.get("subcategory_slug") or "") not in valid_subs and not _canonical_ok(r)
     ]
     bad_leaf = [
         r.get("record_id")
         for r in master_rows
-        if (r.get("sub_subcategory_slug") or "") not in valid_leaves
+        if (r.get("sub_subcategory_slug") or "") not in valid_leaves and not _canonical_ok(r)
     ]
     add(
         _check(
@@ -384,6 +399,39 @@ def build_validation_report(
             expected="sub_subcategory_slug in taxonomy",
             observed={"invalid_count": len(bad_leaf), "examples": bad_leaf[:5]},
             message="Every master record has a valid taxonomy leaf",
+        )
+    )
+
+    # Canonical user-facing export (master → category → nested subcategory).
+    for check in user_facing_validation_checks(
+        root, internal_master_rows=master_rows, fieldnames=RECORD_FIELDS
+    ):
+        add(check)
+
+    hier_issues = validate_hierarchical_export(root, fieldnames=list(RECORD_FIELDS))
+    add(
+        _check(
+            "hierarchical_export_invariants",
+            ok=not hier_issues,
+            expected="five-level tree views of the same canonical master",
+            observed=hier_issues[:8],
+            message="Hierarchical Concrete Decarbonization export invariants hold"
+            if not hier_issues
+            else (hier_issues[0] if hier_issues else "fail"),
+        )
+    )
+    hier_master = (
+        layout["decarbonization_export"] / "concrete_decarbonization.csv"
+        if "decarbonization_export" in layout
+        else root / "concrete_decarbonization_results" / "concrete_decarbonization.csv"
+    )
+    add(
+        _check(
+            "hierarchical_master_csv_exists",
+            ok=hier_master.is_file(),
+            expected=str(hier_master),
+            observed="present" if hier_master.is_file() else "missing",
+            message="concrete_decarbonization.csv exists",
         )
     )
 
@@ -926,6 +974,23 @@ def build_run_manifest(
     if validation_report is not None:
         status = "complete" if validation_report.get("overall_status") == "pass" else "validation_failed"
 
+    coverage: dict[str, Any] = {}
+    taxonomy_coverage: dict[str, Any] = {}
+    try:
+        coverage = build_retrieval_coverage_manifest(root)
+    except Exception as exc:
+        logger.warning("retrieval coverage manifest unavailable: %s", exc)
+        coverage = {}
+    try:
+        from pipeline.cementitious.taxonomy_coverage import write_taxonomy_coverage_report
+
+        taxonomy_coverage = write_taxonomy_coverage_report(root, retrieval_coverage=coverage)
+    except Exception as exc:
+        logger.warning("taxonomy coverage report unavailable: %s", exc)
+        taxonomy_coverage = {}
+    totals = coverage.get("totals") or {}
+    origin_totals = coverage.get("totals_by_evidence_origin") or {}
+
     return {
         "schema_version": MANIFEST_SCHEMA_VERSION,
         "created_at": _now(),
@@ -946,6 +1011,15 @@ def build_run_manifest(
         "web_enabled_leaves": web_leaves,
         "literature_enabled": run_mode in {"literature-and-web", "literature-only"},
         "web_search_enabled": run_mode in {"literature-and-web", "web-only"},
+        "final_records_from_literature": origin_totals.get("Literature")
+        or totals.get("literature_final_records"),
+        "final_records_from_web": origin_totals.get("Web") or totals.get("web_final_records"),
+        "web_search_scope": coverage.get("web_search_scope"),
+        "web_branches_searched": coverage.get("searched_taxonomy_paths") or [],
+        "web_branches_with_zero_results": coverage.get("nodes_with_zero_web_results") or [],
+        "retrieval_coverage_manifest": "metadata/retrieval_coverage_manifest.json",
+        "taxonomy_coverage_report": "metadata/taxonomy_coverage_report.json",
+        "taxonomy_coverage_warnings": taxonomy_coverage.get("warnings") or [],
         "literature_record_cap": env.get("CEMENTITIOUS_MAX_RECORDS") or None,
         "source_corpus_path": env.get("PICKLE_PATH") or env.get("PAPER_RECORDS_PATH") or None,
         "source_corpus_record_count": None,
@@ -973,6 +1047,20 @@ def build_run_manifest(
         "compatibility_aliases": {
             "all_records_run_manifest": ALL_RECORDS_MANIFEST_REL,
             "all_records_validation_report": ALL_RECORDS_VALIDATION_REL,
+            "all_records_master_csv": "all_records/cementitious_materials_all_records.csv",
+            "internal_subcategory_csvs": "subcategories/",
+            "internal_leaf_csvs": "sub_subcategories/",
+        },
+        "user_facing_export": {
+            "root": "cementitious_materials_results/",
+            "master_csv": "cementitious_materials_results/cementitious_materials_all_records.csv",
+            "category_csvs": "cementitious_materials_results/category_csvs/",
+            "subcategory_csvs": "cementitious_materials_results/subcategory_csvs/<category>/<subcategory>.csv",
+            "taxonomy_mapping": {
+                "user_facing_category": "internal subcategory_slug",
+                "user_facing_subcategory": "internal sub_subcategory_slug (taxonomy leaf)",
+            },
+            "empty_partition_policy": "omit empty user-facing CSVs",
         },
     }
 
@@ -1008,6 +1096,22 @@ def write_final_metadata(
                 build_full_run_recommendations(root)
         except Exception as exc:
             logger.warning("Resource summary/recommendations unavailable: %s", exc)
+
+    # Rebuild user-facing CSVs from the internal master so older outputs and
+    # finalize-metadata repairs get the canonical tree without re-extraction.
+    try:
+        ensure_canonical_user_export_from_master(root)
+    except FileNotFoundError:
+        logger.warning("Skipping user-facing export rebuild; internal master CSV is missing")
+    except CanonicalExportError as exc:
+        logger.error("User-facing export invariants failed: %s", exc)
+
+    try:
+        ensure_hierarchical_export_from_master(root)
+    except FileNotFoundError:
+        logger.warning("Skipping hierarchical export rebuild; internal master CSV is missing")
+    except HierarchicalExportError as exc:
+        logger.error("Hierarchical export invariants failed: %s", exc)
 
     validation = build_validation_report(root, taxonomy=tax, environ=env)
     manifest = build_run_manifest(

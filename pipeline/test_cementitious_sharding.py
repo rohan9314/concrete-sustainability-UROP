@@ -228,10 +228,10 @@ class ExtractionShardTests(unittest.TestCase):
                     },
                     taxonomy=tax,
                 )
-                return row, None
+                return [row], None
 
             with mock.patch(
-                "pipeline.cementitious.stages.classify_and_extract",
+                "pipeline.cementitious.stages.classify_and_extract_records",
                 side_effect=fake_classify,
             ):
                 e0 = extract_shard(shard_id=0, output_dir=out, keyword_only=False)
@@ -245,7 +245,7 @@ class ExtractionShardTests(unittest.TestCase):
 
             if len(shards) > 1:
                 with mock.patch(
-                    "pipeline.cementitious.stages.classify_and_extract",
+                    "pipeline.cementitious.stages.classify_and_extract_records",
                     side_effect=fake_classify,
                 ):
                     e1 = extract_shard(shard_id=1, output_dir=out)
@@ -266,7 +266,7 @@ class ExtractionShardTests(unittest.TestCase):
 
             def fake_classify(paper, **kwargs):
                 return (
-                    normalize_record(
+                    [normalize_record(
                         {
                             "category": "Cementitious Materials",
                             "subcategory": "Emerging Supplementary Cementitious Materials",
@@ -288,12 +288,12 @@ class ExtractionShardTests(unittest.TestCase):
                             "extraction_confidence": "High",
                         },
                         taxonomy=tax,
-                    ),
+                    )],
                     None,
                 )
 
             with mock.patch(
-                "pipeline.cementitious.stages.classify_and_extract",
+                "pipeline.cementitious.stages.classify_and_extract_records",
                 side_effect=fake_classify,
             ):
                 extract_shard(shard_id=0, output_dir=out)
@@ -312,7 +312,7 @@ class ExtractionShardTests(unittest.TestCase):
 
             def fake_classify(paper, **kwargs):
                 return (
-                    normalize_record(
+                    [normalize_record(
                         {
                             "category": "Cementitious Materials",
                             "subcategory": "Emerging Supplementary Cementitious Materials",
@@ -334,12 +334,12 @@ class ExtractionShardTests(unittest.TestCase):
                             "extraction_confidence": "High",
                         },
                         taxonomy=tax,
-                    ),
+                    )],
                     None,
                 )
 
             with mock.patch(
-                "pipeline.cementitious.stages.classify_and_extract",
+                "pipeline.cementitious.stages.classify_and_extract_records",
                 side_effect=fake_classify,
             ):
                 e0 = extract_shard(shard_id=0, output_dir=out)
@@ -403,7 +403,7 @@ class IntegrationShardedTests(unittest.TestCase):
 
             def fake_classify(paper, **kwargs):
                 return (
-                    normalize_record(
+                    [normalize_record(
                         {
                             "category": "Cementitious Materials",
                             "subcategory": "Emerging Supplementary Cementitious Materials",
@@ -426,12 +426,12 @@ class IntegrationShardedTests(unittest.TestCase):
                             "extraction_confidence": "High",
                         },
                         taxonomy=tax,
-                    ),
+                    )],
                     None,
                 )
 
             with mock.patch(
-                "pipeline.cementitious.stages.classify_and_extract",
+                "pipeline.cementitious.stages.classify_and_extract_records",
                 side_effect=fake_classify,
             ):
                 for sid in (0, 1, 2):

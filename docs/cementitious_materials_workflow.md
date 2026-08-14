@@ -47,38 +47,84 @@ Final run output (exact name):
 
 ```text
 ${RESULTS_ROOT}/7-30 results/
-├── all_records/
+├── concrete_decarbonization_results/        # CANONICAL five-level export
+│   ├── concrete_decarbonization.csv         # Level 0 (all records)
+│   ├── cementitious_materials/
+│   │   ├── cementitious_materials.csv
+│   │   └── … / <level3>/
+│   │         ├── <level3>.csv
+│   │         └── <level4>.csv
+│   ├── aggregate_procurement/
+│   ├── concrete_design/
+│   ├── structural_and_construction_design/
+│   ├── operation/
+│   ├── policy/
+│   └── end_of_life/
+├── cementitious_materials_results/          # compatibility two-level cementitious view
+│   ├── cementitious_materials_all_records.csv
+│   ├── category_csvs/
+│   └── subcategory_csvs/
+├── all_records/                             # internal + compatibility copies
 │   ├── cementitious_materials_all_records.csv
 │   ├── cementitious_materials_all_records.jsonl
 │   ├── citations_all.csv
-│   ├── run_manifest.json          # compatibility alias of metadata/run_manifest.json
+│   ├── run_manifest.json
 │   ├── taxonomy_manifest.json
-│   ├── validation_report.json     # compatibility alias (+ optional export_stats)
+│   ├── validation_report.json
 │   └── partition_summary.csv
-├── subcategories/          # 9 CSVs (always created, empty OK)
-├── sub_subcategories/      # 58 CSVs (always created, empty OK)
+├── subcategories/          # 9 CSVs (always created, empty OK) — INTERNAL runtime
+├── sub_subcategories/      # 58 CSVs (always created, empty OK) — INTERNAL runtime leaves
 ├── citations/
-│   ├── subcategories/
-│   └── sub_subcategories/
 ├── pending_taxonomy_review/
-│   ├── pending_taxonomy_records.csv
-│   ├── pending_taxonomy_citations.csv
-│   └── pending_taxonomy_summary.json
 ├── logs/
-│   └── failed_llm_responses/
 ├── checkpoints/
 ├── rejected_records/
 └── metadata/
-    ├── run_manifest.json          # canonical final-run summary (required)
-    ├── validation_report.json     # canonical output-contract checks (required)
+    ├── run_manifest.json
+    ├── validation_report.json
+    ├── taxonomy_export_manifest.json
+    ├── cementitious_runtime_taxonomy_migration.json
     ├── resource_usage_summary.json
-    ├── full_run_resource_recommendations.json   # required after successful pilot
-    └── …
+    └── full_run_resource_recommendations.json
 ```
+
+Canonical taxonomy config: `config/concrete_decarbonization_taxonomy.json` (five levels, 0–4).
+The cementitious extraction runtime still uses `config/cementitious_materials_taxonomy.json` (9 groups / 58 leaves) and maps into the five-level tree at export time.
+
+### Five-level export rules
+
+- One canonical master dataframe; every hierarchical CSV is a filter of that same table.
+- Levels 0–3: folder (except Level 0 uses the export root) + CSV, including empty header-only CSVs.
+- Level 4: CSV in the Level-3 folder; empty Level-4 CSVs are omitted and listed in `metadata/taxonomy_export_manifest.json`.
+- `taxonomy_level_4 = N.A.` (or blank) means the row belongs in ancestor CSVs but not in any Level-4 leaf CSV.
+- `cementitious_materials_results/` remains a compatibility view of the cementitious subset using the previous two-level layout.
+
+### User-facing vs internal taxonomy levels
+
+The taxonomy has three internal levels: umbrella **category** (Cementitious Materials), **subcategory** (9 nodes), and **sub-subcategory / leaf** (58 nodes).
+
+The user-facing export is two levels under the master CSV:
+
+| User-facing output | Internal field / nodes | Example |
+| --- | --- | --- |
+| `category_csvs/<slug>.csv` | `subcategory_slug` (9) | `cement_plant_carbon_capture.csv` |
+| `subcategory_csvs/<category>/<slug>.csv` | `sub_subcategory_slug` (58), nested under the parent subcategory | `cement_plant_carbon_capture/chemical_absorption.csv` |
+
+Do not treat the 58 leaf files under internal `sub_subcategories/` as the user-facing subcategory folder. Those remain internal/intermediate (and still include empty files).
+
+All user-facing CSVs are filtered views of **one** canonical dataframe (`cementitious_materials_all_records.csv`). They share the full unified schema and column order. Empty user-facing category/subcategory CSVs are **not** created.
+
+Records that fail taxonomy validation are written to `rejected_records/` and are not in the master. Rows that reach export with a blank subcategory/leaf slug are kept in the master, copied to `cementitious_materials_results/unassigned_taxonomy.csv`, omitted from category/subcategory CSVs, and fail validation so `export.complete` is not written.
 
 ### Record count vs CSV file count
 
-A successful taxonomy export always materializes **all** configured partition CSVs (9 subcategory + 58 leaf record files, plus matching citation CSVs), even when a branch has zero accepted rows. Pilot runs may therefore create ~150 CSV files while only populating one selected leaf (for example Chemical Absorption). Empty header-only partition files are valid.
+A successful taxonomy export still materializes **all** configured **internal** partition CSVs (9 subcategory + 58 leaf record files, plus matching citation CSVs), even when a branch has zero accepted rows. Pilot runs may therefore create ~150 internal CSV files while only populating one selected leaf (for example Chemical Absorption). Empty header-only **internal** partition files are valid.
+
+The **user-facing** tree under `cementitious_materials_results/` only writes CSVs for partitions that have at least one canonical row.
+
+### Backward compatibility
+
+Downstream scripts and tests that read `all_records/`, `subcategories/`, `sub_subcategories/`, `citations/`, and `partition_summary.csv` keep working. Those paths remain the internal/compat layout. Prefer `cementitious_materials_results/` for new user-facing consumers.
 
 ### Final metadata contract
 
@@ -104,8 +150,8 @@ This reads existing CSVs, writes `metadata/run_manifest.json` and `metadata/vali
 
 ### What counts as a successful final run
 
-1. Master + all taxonomy partition/citation CSVs exist with correct headers.
-2. Every master record appears in the matching subcategory and leaf files only.
+1. User-facing master + populated category/subcategory CSVs under `cementitious_materials_results/`, plus internal master + all taxonomy partition/citation CSVs with correct headers.
+2. Every master record appears in the matching user-facing category/subcategory files and in the matching internal subcategory and leaf files only.
 3. Citations align to records and leaf citation partitions.
 4. Required audits for missing shards / invalid taxonomy are empty (as applicable).
 5. `metadata/run_manifest.json` and `metadata/validation_report.json` exist with `overall_status: pass`.
@@ -174,6 +220,7 @@ If `RESULTS_ROOT` is unset, the default is `<repository_root>/results`, so outpu
 | `RUN_MODE` | — | no | `literature-and-web` / `literature-only` / `web-only` |
 | `SELECTED_SUBCATEGORIES` | — | no | Comma-separated slugs/names |
 | `SELECTED_SUB_SUBCATEGORIES` | — | no | Comma-separated slugs/names |
+| `CEMENTITIOUS_PILOT_TAXONOMY_SCOPE` | — | no (pilot default `smoke`) | `smoke` = one-branch taxonomy restriction; `all` = full taxonomy with the literature record cap still applied. Independent of corpus sampling. |
 | `CHECKPOINT_DIR` | — | no | Defaults under `7-30 results/checkpoints` |
 | `LITERATURE_ONLY` | — | no | `1` forces literature-only |
 | `WEB_ONLY` | — | no | `1` forces web-only |
@@ -253,6 +300,49 @@ python -m pipeline.run_cementitious_materials run \
   --literature-only \
   --output /tmp/cementitious-smoke-test
 ```
+
+### Engaging launch modes: smoke vs full-taxonomy pilots vs full
+
+A **pilot reduces corpus size**. It must not silently reduce the taxonomy to one branch.
+
+| Command | Mode | Literature cap | Taxonomy | Output suffix |
+| --- | --- | --- | --- | --- |
+| `--pilot` | smoke | 50 | one branch (`cement_plant_carbon_capture` / `chemical_absorption`) unless `CEMENTITIOUS_PILOT_TAXONOMY_SCOPE=all` | `cementitious_engaging_pilot/` |
+| `--pilot-50` | production-like 50 | 50 | **full** canonical Concrete Decarbonization tree (L0–L4) | `concrete_decarbonization_pilot_50/` |
+| `--pilot-1000` | production-like 1000 | 1000 | **full** canonical tree | `concrete_decarbonization_pilot_1000/` |
+| `--full` | production | uncapped | full canonical tree | `concrete_decarbonization_full_run/` |
+
+All four modes enable literature **and** Tavily/web by default, write hierarchical `concrete_decarbonization_results/`, and emit resource telemetry (`resource_usage_summary.json`, `full_run_resource_recommendations.json`). Inner layout still uses `7-30 results/` under the suffix above.
+
+```bash
+bash scripts/engaging/run_concrete_decarbonization_full_workflow.sh --full --dry-run
+bash scripts/engaging/run_concrete_decarbonization_full_workflow.sh --pilot-50 --dry-run
+bash scripts/engaging/run_concrete_decarbonization_full_workflow.sh --pilot-1000 --dry-run
+# backward-compatible alias:
+bash scripts/engaging/run_cementitious_full_workflow.sh --pilot-50 --dry-run
+```
+
+`--pilot` remains the cheap smoke launcher (`run_cementitious_pilot.sh` just calls `--pilot`). To keep that 50-record cap on the smoke command without restricting taxonomy:
+
+```bash
+CEMENTITIOUS_PILOT_TAXONOMY_SCOPE=all bash scripts/engaging/run_cementitious_full_workflow.sh --pilot
+```
+
+Explicit `SELECTED_SUBCATEGORIES` / `SELECTED_SUB_SUBCATEGORIES` still override. Literature sampling is deterministic `random.Random(seed).sample` with default seed `42` (`CEMENTITIOUS_SAMPLE_SEED` / `SAMPLE_SEED`), not first-N. Pilot web caps (`WEB_MAX_TOTAL_URLS`, `WEB_MAX_TOTAL_QUERIES`, …) are conservative and overridable via env.
+
+Checkpoints are per output directory: a completed 50-paper run cannot block 1000 or full. `FORCE=1` overwrites only the selected mode's output.
+
+### Full-run memory bounds
+
+The ~5.5 GB pickle is deserialized **once** in the preprocess job (64G request). Array workers read only their JSONL shard; they do not `pickle.load`.
+
+Full defaults (override with env): `SHARD_SIZE=10000` (~16 shards for ~159k papers), `CEMENTITIOUS_WORKERS=1`, `ARRAY_MAX_CONCURRENCY=1`. Peak RSS scales roughly with concurrent array tasks × per-shard RSS. Do not raise concurrency without calibrated MaxRSS headroom.
+
+Ranking streams `screening_results.jsonl` into a bounded TOP_N heap. Hierarchical export buckets row *references* and writes one taxonomy node at a time. Web search truncates `raw_content` to `WEB_PAGE_MAX_CHARS` and merges unique URLs without holding every raw Tavily row.
+
+Soft-memory-stop checkpoints a shard and exits 75 (resumable). Slurm `OUT_OF_MEMORY` / exit 137 is a cgroup kill. Signal 9 is not labeled definite OOM unless MaxRSS is ≥80% of ReqMem or the job state is `OUT_OF_MEMORY`. `TIMEOUT` / `NODE_FAIL` are non-memory failures.
+
+Full submit requires calibrated pilot telemetry (prefer `concrete_decarbonization_pilot_1000`). Override only with `--allow-uncalibrated-resources`.
 
 ---
 
